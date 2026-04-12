@@ -11,7 +11,7 @@ let delegationBound = false;
 const VOIE_LABELS = {
   "VC": "Certification (VC)",
   "VP": "Pratiques (VP)",
-  "VE": "Environnementale (VE)",
+  "VB": "Environnementale IAE (VB)",
   "VH": "Haies (VH)"
 };
 

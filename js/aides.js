@@ -53,7 +53,7 @@ function aidesFormatBoolean(value) {
 }
 
 function formatVoieEcoregime(code) {
-  const m = { "VC": "Certification (VC)", "VP": "Pratiques (VP)", "VE": "Environnementale (VE)", "VH": "Haies (VH)" };
+  const m = { "VC": "Certification (VC)", "VP": "Pratiques (VP)", "VB": "Environnementale IAE (VB)", "VH": "Haies (VH)" };
   return m[code] || (code ? `Voie inconnue (${code})` : "-");
 }
 
