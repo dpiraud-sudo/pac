@@ -44,16 +44,12 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo) {
     attribution: '© Google'
   });
 
-  var esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: '© ESRI',
-    maxZoom: 18
- });
+  
 
   var baseMaps = {
     "🗺️ Carte classique": cartoDB,
     "🛰️ Satellite": googleSat,
-    "🛰️ Hybride": googleHybrid,
-    "🛰️ ESRI Satellite": esriSat
+    "🛰️ Hybride": googleHybrid
   };
 
   // Ajout du fond par défaut
