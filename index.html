@@ -2,214 +2,59 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PAC 2026 — Visualiseur dossier</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f0f4f0; color: #1a2e1a; min-height: 100vh; }
-  #upload-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-  .upload-card { background: white; border-radius: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.10); padding: 48px 40px; max-width: 520px; width: 100%; text-align: center; }
-  .upload-card h1 { font-size: 1.7rem; color: #1f5e2c; margin-bottom: 8px; }
-  .upload-card p { color: #557055; margin-bottom: 32px; font-size: 0.95rem; }
-  .drop-zone { border: 2.5px dashed #7db87d; border-radius: 16px; padding: 40px 20px; cursor: pointer; transition: 0.2s; background: #f7fcf7; }
-  .drop-zone:hover, .drop-zone.drag-over { border-color: #2d6a2f; background: #edf7ed; }
-  .drop-zone .icon { font-size: 3rem; margin-bottom: 12px; }
-  .drop-zone p { color: #3a6a3a; font-size: 1rem; }
-  .drop-zone small { color: #888; }
-  #file-input { display: none; }
-  .btn-primary { display: inline-block; background: #2d6a2f; color: white; border: none; padding: 12px 28px; border-radius: 40px; font-size: 1rem; cursor: pointer; margin-top: 20px; font-weight: 600; transition: 0.2s; }
-  .btn-primary:hover { background: #1f5422; }
-  #app-screen { display: none; }
-  .app-header { background: #2d6a2f; color: white; padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-  .app-header h1 { font-size: 1.2rem; flex: 1; }
-  .app-header .pacage-info { font-size: 0.82rem; opacity: 0.85; }
-  .btn-reload { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 6px 16px; border-radius: 30px; cursor: pointer; font-size: 0.85rem; }
-  .btn-reload:hover { background: rgba(255,255,255,0.25); }
-  .tabs { display: flex; background: #1f5422; padding: 0 24px; flex-wrap: wrap; }
-  .tab-btn { background: none; border: none; color: rgba(255,255,255,0.65); padding: 12px 24px; font-size: 0.95rem; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500; transition: 0.15s; }
-  .tab-btn.active { color: white; border-bottom-color: #7de87d; }
-  .tab-btn:hover { color: white; }
-  .tab-content { display: none; padding: 20px 24px; }
-  .tab-content.active { display: block; }
-  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; background: #f9fff7; padding: 12px 16px; border-radius: 40px; border: 1px solid #d4e2cf; align-items: center; }
-  .toolbar input[type="text"] { flex: 1; min-width: 160px; padding: 8px 18px; border-radius: 30px; border: 1px solid #c0dbc0; font-size: 0.9rem; outline: none; }
-  .toolbar input:focus { border-color: #3f8e41; box-shadow: 0 0 0 2px rgba(79,149,79,0.15); }
-  .toolbar select { padding: 8px 14px; border-radius: 30px; border: 1px solid #c0dbc0; font-size: 0.85rem; background: white; cursor: pointer; }
-  .stats-badge { background: #e8f3e5; border-radius: 30px; padding: 6px 16px; font-size: 0.82rem; font-weight: 600; color: #2d6a2f; white-space: nowrap; }
-  .table-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid #deecda; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  thead th { background: #2d6a2f; color: white; padding: 11px 8px; font-weight: 600; white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0; z-index: 5; }
-  thead th:hover { background: #1f5422; }
-  thead th.sorted { background: #1a4a1c; }
-  tbody tr:hover td { background: #f4fbf3; }
-  tbody td { padding: 8px 8px; border-bottom: 1px solid #e5eee2; vertical-align: middle; }
-  tbody tr:last-child td { border-bottom: none; }
-  .code-badge { font-family: monospace; background: #eff5eb; padding: 3px 8px; border-radius: 16px; font-weight: 700; font-size: 0.8rem; }
-  .prec-badge { font-family: monospace; background: #e8f0ff; color: #2244aa; padding: 2px 7px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
-  .surf-TA { background: #d0eaff; color: #1a5080; padding: 2px 8px; border-radius: 12px; font-size: 0.76rem; font-weight: 600; }
-  .surf-PP { background: #d4f0d4; color: #2a6b2f; padding: 2px 8px; border-radius: 12px; font-size: 0.76rem; font-weight: 600; }
-  .surf-CP { background: #fde9cf; color: #aa6f20; padding: 2px 8px; border-radius: 12px; font-size: 0.76rem; font-weight: 600; }
-  .surf-other { background: #f0e8ff; color: #5a2d8a; padding: 2px 8px; border-radius: 12px; font-size: 0.76rem; font-weight: 600; }
-  .bool-yes { color: #2d8a40; font-weight: 700; }
-  .bool-no { color: #ccc; }
-  .section-badge { background: #f0f0f0; border-radius: 10px; padding: 1px 7px; font-size: 0.75rem; color: #666; }
-  .synth-summary { background: white; border-radius: 16px; padding: 16px 20px; margin-bottom: 20px; border: 1px solid #deecda; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
-  .synth-kpi { text-align: center; }
-  .synth-kpi .val { font-size: 1.5rem; font-weight: 700; color: #2d6a2f; }
-  .synth-kpi .lbl { font-size: 0.78rem; color: #778; }
-  #loading { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.85); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
-  #loading.show { display: flex; }
-  .spinner { width: 48px; height: 48px; border: 5px solid #d4e2cf; border-top-color: #2d6a2f; border-radius: 50%; animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .unknown-row td { background: #fffbe6 !important; }
-  
-  /* Styles pour l'onglet Écorégime */
-  .eco-group { margin-bottom: 20px; background: white; border-radius: 16px; border: 1px solid #deecda; overflow: hidden; }
-  .eco-header { background: #eef5ea; padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; transition: 0.1s; }
-  .eco-header:hover { background: #e3f0dd; }
-  .eco-title { font-weight: 700; font-size: 1rem; color: #1f5422; flex: 1; }
-  .eco-stats { display: flex; gap: 12px; font-size: 0.75rem; color: #2d572d; }
-  .eco-stats span { background: white; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
-  .expand-icon { font-size: 0.9rem; transition: transform 0.2s; display: inline-block; width: 18px; text-align: center; }
-  .eco-group.collapsed .eco-detail-wrap { display: none; }
-  .eco-group.collapsed .expand-icon { transform: rotate(-90deg); }
-  .eco-detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  .eco-detail-table th { background: #f4faf2; color: #1a3e1a; padding: 8px 10px; font-weight: 600; border-bottom: 1px solid #ddecd8; }
-  .eco-detail-table td { padding: 6px 10px; border-bottom: 1px solid #ecf3e8; }
-  .eco-summary-bar { background: white; border-radius: 16px; padding: 16px 20px; margin-bottom: 20px; border: 1px solid #deecda; display: flex; flex-wrap: wrap; gap: 24px; align-items: center; }
-  .eco-kpi { text-align: center; }
-  .eco-kpi .val { font-size: 1.4rem; font-weight: 700; color: #2d6a2f; }
-  .eco-kpi .lbl { font-size: 0.75rem; color: #778; }
-
-  /* Styles pour l'onglet Îlots */
-  .ilot-group { margin-bottom: 20px; background: white; border-radius: 16px; border: 1px solid #deecda; overflow: hidden; }
-  .ilot-header { background: #e8f0e4; padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; transition: 0.1s; }
-  .ilot-header:hover { background: #ddecd8; }
-  .ilot-title { font-weight: 700; font-size: 1.1rem; color: #1f5422; flex: 1; }
-  .ilot-stats { display: flex; gap: 16px; font-size: 0.8rem; color: #2d572d; }
-  .ilot-stats span { background: white; padding: 4px 12px; border-radius: 25px; font-weight: 600; }
-  .ilot-detail-wrap { padding: 0; }
-  .ilot-detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  .ilot-detail-table th { background: #f4faf2; color: #1a3e1a; padding: 8px 12px; font-weight: 600; border-bottom: 1px solid #ddecd8; }
-  .ilot-detail-table td { padding: 6px 12px; border-bottom: 1px solid #ecf3e8; }
-  .ilot-group.collapsed .ilot-detail-wrap { display: none; }
-  .ilot-group.collapsed .expand-icon { transform: rotate(-90deg); }
-  .surface-progress { background: #e0ecd8; border-radius: 20px; height: 6px; width: 100px; overflow: hidden; display: inline-block; margin-left: 8px; }
-  .surface-progress-bar { background: #2d6a2f; height: 100%; border-radius: 20px; }
-
-  /* Styles onglet Aides demandées */
-  .aides-info-panel { background: #eef5ea; margin: 0 0 20px 0; padding: 15px 20px; border-radius: 12px; border-left: 6px solid #2d6a2f; }
-  .aides-info-panel h3 { margin: 0 0 10px 0; color: #1f5422; }
-  .aides-info-grid { display: flex; flex-wrap: wrap; gap: 12px; }
-  .aides-info-item { background: white; border-radius: 8px; padding: 8px 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); flex: 1 1 180px; border: 1px solid #deecda; }
-  .aides-info-label { font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: #557055; }
-  .aides-info-value { font-size: 0.95rem; font-weight: 500; margin-top: 4px; word-break: break-word; }
-  .aides-section { margin-bottom: 20px; }
-  .aides-section h2 { font-size: 1rem; color: #1f5422; margin: 0 0 10px 0; font-weight: 700; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #eef5ea; border-radius: 8px; }
-  .aides-card { background: white; border: 1px solid #deecda; border-radius: 10px; margin-bottom: 8px; }
-  .aides-card:hover { border-color: #a8c8a0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
-  .aides-card-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; border-radius: 10px; font-weight: 600; font-size: 0.88rem; }
-  .aides-card-name { color: #1a2e1a; }
-  .aides-status { font-weight: 700; padding: 3px 12px; border-radius: 20px; font-size: 0.78rem; white-space: nowrap; }
-  .aides-status-true { background: #dcfce7; color: #15803d; }
-  .aides-status-false { background: #fee2e2; color: #b91c1c; }
-  .aides-status-other { background: #f0f0f0; color: #334155; }
-  .aides-card-detail { padding: 8px 16px 12px; font-size: 0.82rem; color: #445; border-top: 1px solid #f0f6ee; display: flex; flex-direction: column; gap: 4px; }
-  .assureur-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-  .assureur-badge { background: #eef5ea; border-radius: 20px; padding: 3px 10px; font-size: 0.8rem; color: #2d6a2f; border: 1px solid #c0dbc0; }
-
-  /* Styles onglet Comparaison 2025/2026 */
-  .cmp-upload-zone { background: white; border-radius: 16px; border: 2px dashed #7db87d; padding: 32px 24px; text-align: center; cursor: pointer; transition: 0.2s; margin-bottom: 20px; }
-  .cmp-upload-zone:hover, .cmp-upload-zone.drag-over { border-color: #2d6a2f; background: #f0faf0; }
-  .cmp-upload-zone .icon { font-size: 2.5rem; margin-bottom: 8px; }
-  .cmp-upload-zone p { color: #3a6a3a; font-size: 0.95rem; margin-bottom: 4px; }
-  .cmp-upload-zone small { color: #888; }
-  .btn-cmp-load { display: inline-block; background: #2d6a2f; color: white; border: none; padding: 10px 22px; border-radius: 40px; font-size: 0.9rem; cursor: pointer; margin-top: 14px; font-weight: 600; transition: 0.2s; }
-  .btn-cmp-load:hover { background: #1f5422; }
-  .cmp-loaded-info { background: #eef5ea; border-radius: 12px; padding: 10px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px; border: 1px solid #c0dbc0; flex-wrap: wrap; }
-  .cmp-loaded-info .cmp-tag { font-weight: 700; font-size: 0.82rem; background: #2d6a2f; color: white; border-radius: 20px; padding: 3px 12px; }
-  .cmp-loaded-info span { color: #2a4a2a; font-size: 0.88rem; }
-  .btn-cmp-reset { background: none; border: 1px solid #aaa; color: #555; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; margin-left: auto; }
-  .btn-cmp-reset:hover { background: #f0f0f0; }
-  /* Table unique 2025/2026 */
-  .cmp-table-wrap { background: white; border-radius: 16px; border: 1px solid #deecda; overflow: hidden; margin-bottom: 20px; }
-  .cmp-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  .cmp-table thead th { padding: 11px 14px; font-weight: 700; color: white; text-align: center; }
-  .cmp-table thead th.th-label { background: #3a5a3a; text-align: left; width: 45%; }
-  .cmp-table thead th.th-2026 { background: #2d6a2f; width: 27.5%; }
-  .cmp-table thead th.th-2025 { background: #5a7a8a; width: 27.5%; }
-  .cmp-table tbody tr.cmp-section-row td { background: #eef5ea; font-weight: 700; font-size: 0.78rem; color: #1f5422; text-transform: uppercase; letter-spacing: 0.05em; padding: 7px 14px; border-top: 2px solid #c5dfc0; }
-  .cmp-table tbody tr td { padding: 7px 14px; border-bottom: 1px solid #f0f6ee; vertical-align: middle; }
-  .cmp-table tbody tr:last-child td { border-bottom: none; }
-  .cmp-table tbody tr.diff-row { background: #fffbe6; }
-  .cmp-table td.td-label { color: #334; font-size: 0.84rem; }
-  .cmp-table td.td-val { text-align: center; }
-  .cmp-item-val { font-weight: 700; padding: 2px 10px; border-radius: 20px; font-size: 0.78rem; white-space: nowrap; display: inline-block; }
-  .cmp-val-yes { background: #dcfce7; color: #15803d; }
-  .cmp-val-no { background: #fee2e2; color: #b91c1c; }
-  .cmp-val-other { background: #f0f0f0; color: #334155; }
-  .cmp-val-missing { background: #f5f5f5; color: #aaa; font-style: italic; }
-  .diff-marker { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #f0a030; margin-right: 5px; vertical-align: middle; }
-  .cmp-assureur { font-size: 0.75rem; color: #557; display: block; margin-top: 2px; }
-  .cmp-diff-banner { background: #fff8e0; border: 1px solid #f0c060; border-radius: 12px; padding: 12px 18px; margin-bottom: 16px; font-size: 0.85rem; color: #7a5a00; }
-  .cmp-diff-banner strong { display: block; margin-bottom: 6px; color: #5a4000; font-size: 0.9rem; }
-  .diff-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f0a030; margin-right: 6px; }
-  .cmp-placeholder { text-align: center; padding: 40px 20px; color: #aaa; }
-  .cmp-placeholder .icon { font-size: 2.5rem; margin-bottom: 10px; }
-  .cmp-id-panel { background: white; border-radius: 16px; border: 1px solid #deecda; padding: 14px 20px; margin-bottom: 16px; }
-  .cmp-id-panel h3 { font-size: 0.9rem; color: #1f5422; margin-bottom: 10px; font-weight: 700; }
-  .cmp-id-row { display: flex; gap: 12px; flex-wrap: wrap; }
-  .cmp-id-item { flex: 1 1 160px; background: #f7faf6; border-radius: 8px; padding: 8px 12px; border: 1px solid #deecda; }
-  .cmp-id-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: #557055; }
-  .cmp-id-val { font-size: 0.88rem; font-weight: 500; margin-top: 2px; }
-  .cmp-id-val .yr { font-size: 0.75rem; font-weight: 600; padding: 1px 6px; border-radius: 10px; margin-right: 4px; }
-  .yr-2026 { background: #2d6a2f; color: white; }
-  .yr-2025 { background: #5a7a8a; color: white; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PAC 2026 — Visualiseur complet</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div id="loading"><div class="spinner"></div><div>Chargement…</div></div>
+<div id="loading"><div class="spinner"></div><div>Chargement du fichier...</div></div>
 
 <div id="upload-screen">
   <div class="upload-card">
-    <h1>🌿 PAC 2026 — Visualiseur</h1>
-    <p>Chargez votre fichier dossier PAC au format XML (export Telepac) pour visualiser vos parcelles et obtenir une synthèse par culture.</p>
-    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <h1>🌿 PAC 2026 — Visualiseur complet</h1>
+    <p>Chargez votre fichier dossier PAC (XML) pour visualiser parcelles, synthèse, écorégime, aides, SNA et cartographie interactive.</p>
+    <div class="drop-zone" id="drop-zone">
       <div class="icon">📂</div>
       <p>Glisser-déposer votre fichier XML ici</p>
-      <small>ou cliquer pour sélectionner</small>
+      <small>ou</small>
+      <button type="button" id="upload-btn" class="btn-upload">📁 Choisir un fichier XML</button>
     </div>
-    <input type="file" id="file-input" accept=".xml">
-    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Choisir un fichier XML</button>
+    <input type="file" id="file-input" accept=".xml" hidden>
   </div>
 </div>
 
-<div id="app-screen">
+<div id="app-screen" style="display:none;">
   <div class="app-header">
     <div>
-      <h1>🌿 PAC 2026 — Visualiseur dossier</h1>
+      <h1>🌿 PAC 2026 — Visualiseur dossier + Carte</h1>
       <div class="pacage-info" id="pacage-info"></div>
     </div>
-    <button class="btn-reload" onclick="resetApp()">⟳ Charger un autre fichier</button>
+    <button class="btn-reload" id="reset-btn">⟳ Charger un autre fichier</button>
   </div>
+  
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('aides')">🟢 Aides demandées</button>
-    <button class="tab-btn" onclick="switchTab('ilots')">🗺️ Synthèse par îlot</button>
-    <button class="tab-btn" onclick="switchTab('parcelles')">📋 Parcelles</button>
-    <button class="tab-btn" onclick="switchTab('synthese')">📊 Synthèse par culture</button>
-    <button class="tab-btn" onclick="switchTab('ecoregime')">🌱 Écorégime</button>
-    <button class="tab-btn" onclick="switchTab('maec')">📝 Engagements MAEC</button>
-    <button class="tab-btn" onclick="switchTab('balises')">📋 Détail parcelles</button>
-    <button class="tab-btn" onclick="switchTab('pp')">🌿 PP / Bio / MAEC</button>
-    <button class="tab-btn" onclick="switchTab('comparaison')" style="background:rgba(255,255,255,0.12);font-weight:700;">🔍 Comparaison 2025/2026</button>
+    <button class="tab-btn active" data-tab="aides">🟢 Aides demandées</button>
+    <button class="tab-btn" data-tab="carte">🗺️ Carte interactive</button>
+    <button class="tab-btn" data-tab="sna">🏗️ SNA</button>
+    <button class="tab-btn" data-tab="ilots">📊 Synthèse par îlot</button>
+    <button class="tab-btn" data-tab="parcelles">📋 Parcelles</button>
+    <button class="tab-btn" data-tab="synthese">📊 Synthèse par culture</button>
+    <button class="tab-btn" data-tab="ecoregime">🌱 Écorégime</button>
+    <button class="tab-btn" data-tab="maec">📝 Engagements MAEC</button>
+    <button class="tab-btn" data-tab="balises">🔍 Détail parcelles</button>
+    <button class="tab-btn" data-tab="pp">🌿 PP / Bio / MAEC</button>    
   </div>
 
+  <!-- Onglet Parcelles -->
   <div id="tab-parcelles" class="tab-content">
     <div class="toolbar">
-      <input type="text" id="search-parc" placeholder="🔍 Rechercher (culture, code, îlot…)" oninput="filterParcelles()">
-      <select id="filter-code" onchange="filterParcelles()"><option value="">Tous les codes</option></select>
-      <select id="filter-surf" onchange="filterParcelles()">
+      <input type="text" id="search-parc" placeholder="🔍 Rechercher (culture, code, îlot…)" oninput="window.filterParcelles?.()">
+      <select id="filter-code" onchange="window.filterParcelles?.()"><option value="">Tous les codes</option></select>
+      <select id="filter-surf" onchange="window.filterParcelles?.()">
         <option value="">Toutes surfaces</option>
         <option value="TA">🌱 Terre arable (TA)</option>
         <option value="PP">🐄 Prairie permanente (PP)</option>
@@ -219,1499 +64,133 @@
     </div>
     <div class="table-wrap">
       <table id="table-parcelles">
-               <thead>
-          <tr>
-            <th onclick="sortTable('ilot_num')" data-col="ilot_num">Îlot ↕</th>
-            <th onclick="sortTable('num_parcelle')" data-col="num_parcelle">N° Parc. ↕</th>
-            <th onclick="sortTable('commune')" data-col="commune">Commune ↕</th>
-            <th onclick="sortTable('code')" data-col="code">Code ↕</th>
-            <th onclick="sortTable('precision')" data-col="precision">Préc. ↕</th>
-            <th onclick="sortTable('nom_culture')" data-col="nom_culture">Culture ↕</th>
-            <th onclick="sortTable('precision_label')" data-col="precision_label">Libellé précision ↕</th>
-            <th onclick="sortTable('surface_cat')" data-col="surface_cat">Surf. agri. ↕</th>
-            <th onclick="sortTable('eco')" data-col="eco">Catégorie écorégime ↕</th>
-            <th onclick="sortTable('area_ha')" data-col="area_ha">Surface calc. (ha) ↕</th>
-            <th onclick="sortTable('surface_admissible_ha')" data-col="surface_admissible_ha">Surf. adm. (ha) ↕</th>
-            <th onclick="sortTable('culture_sec')" data-col="culture_sec">Culture sec. ↕</th>
-            
-            <!-- Colonnes masquées (IAE et Semences) -->
-            <th onclick="sortTable('declare_iae')" data-col="declare_iae" style="display:none">IAE ↕</th>
-            <th onclick="sortTable('prod_semences')" data-col="prod_semences" style="display:none">Semences ↕</th>
-            
-            <th onclick="sortTable('longueur_bordure')" data-col="longueur_bordure" style="display:none">Long. bord. (m) ↕</th>
-            <th onclick="sortTable('portee')" data-col="portee" style="display:none">Portée ↕</th>
-            <th onclick="sortTable('section')" data-col="section" style="display:none">Section ↕</th>
-            <th style="display:none">Réf. îlot</th>
-          </tr>
+        <thead>
+          <tr><th onclick="window.sortTable?.('ilot_num')" data-col="ilot_num">Îlot ↕</th>
+          <th onclick="window.sortTable?.('num_parcelle')" data-col="num_parcelle">N° Parc. ↕</th>
+          <th onclick="window.sortTable?.('commune')" data-col="commune">Commune ↕</th>
+          <th onclick="window.sortTable?.('code')" data-col="code">Code ↕</th>
+          <th onclick="window.sortTable?.('precision')" data-col="precision">Préc. ↕</th>
+          <th onclick="window.sortTable?.('nom_culture')" data-col="nom_culture">Culture ↕</th>
+          <th onclick="window.sortTable?.('precision_label')" data-col="precision_label">Libellé précision ↕</th>
+          <th onclick="window.sortTable?.('surface_cat')" data-col="surface_cat">Surf. agri. ↕</th>
+          <th onclick="window.sortTable?.('eco')" data-col="eco">Catégorie écorégime ↕</th>
+          <th onclick="window.sortTable?.('area_ha')" data-col="area_ha">Surface calc. (ha) ↕</th>
+          <th onclick="window.sortTable?.('surface_admissible_ha')" data-col="surface_admissible_ha">Surf. adm. (ha) ↕</th>
+          <th onclick="window.sortTable?.('culture_sec')" data-col="culture_sec">Culture sec. ↕</th>
+        </tr>
         </thead>
         <tbody id="tbody-parcelles"></tbody>
       </table>
     </div>
   </div>
 
+  <!-- Onglet Synthèse par culture -->
   <div id="tab-synthese" class="tab-content">
     <div id="synth-summary" class="synth-summary"></div>
     <div id="synth-charts" style="display:flex;flex-wrap:wrap;gap:20px;margin-bottom:20px;align-items:flex-start"></div>
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr>
-            <th>Code</th><th>Culture</th><th>Code préc.</th><th>Libellé précision</th>
-            <th>Surf. agri.</th><th>Catégorie écorégime</th><th>Section PAC</th>
-            <th>Nb parcelles</th><th>Surface calc. (ha)</th><th>Surf. adm. (ha)</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Code</th><th>Culture</th><th>Code préc.</th><th>Libellé précision</th><th>Surf. agri.</th><th>Catégorie écorégime</th><th>Section PAC</th><th>Nb parcelles</th><th>Surface calc. (ha)</th><th>Surf. adm. (ha)</th></tr></thead>
         <tbody id="tbody-synth"></tbody>
       </table>
     </div>
   </div>
 
+  <!-- Onglet Écorégime -->
   <div id="tab-ecoregime" class="tab-content">
     <div id="eco-summary" class="eco-summary-bar"></div>
     <div id="ecoregime-container"></div>
   </div>
 
-  <!-- ONGLET : SYNTHÈSE PAR ÎLOT -->
+  <!-- Onglet Synthèse par îlot -->
   <div id="tab-ilots" class="tab-content">
     <div id="ilot-summary" class="eco-summary-bar"></div>
     <div id="ilots-container"></div>
   </div>
 
-  <!-- ONGLET : ENGAGEMENTS MAEC -->
+  <!-- Onglet MAEC -->
   <div id="tab-maec" class="tab-content">
     <div id="maec-summary" class="eco-summary-bar"></div>
     <div id="maec-container"></div>
   </div>
 
-  <!-- ONGLET : DÉTAIL PARCELLES -->
+  <!-- Onglet Détail parcelles -->
   <div id="tab-balises" class="tab-content">
     <div id="balises-summary" class="eco-summary-bar"></div>
-  ...
     <div class="toolbar">
-      <input type="text" id="search-balises" placeholder="🔍 Rechercher (îlot, code, culture…)" oninput="filterBalises()">
+      <input type="text" id="search-balises" placeholder="🔍 Rechercher (îlot, code, culture…)" oninput="window.filterBalises?.()">
       <div class="stats-badge" id="stats-balises">— parcelles</div>
     </div>
     <div class="table-wrap">
       <table id="table-balises">
-        <thead>
-          <tr>
-            <th>Îlot</th>
-            <th>N° Parc.</th>
-            <th>Code culture</th>
-            <th>Précision</th>
-            <th>Culture</th>
-            <th>production-semences</th>
-            <th>production-fermiers</th>
-            <th>deshydratation</th>
-            <th>derogation-ukraine</th>
-            <th>culture-secondaire</th>
-            <th>accident-culture</th>
-            <th>declare-IAE</th>
-            <th>prise-connaissance-interdiction-phyto</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Îlot</th><th>N° Parc.</th><th>Code culture</th><th>Précision</th><th>Culture</th><th>production-semences</th><th>production-fermiers</th><th>deshydratation</th><th>derogation-ukraine</th><th>culture-secondaire</th><th>accident-culture</th><th>declare-IAE</th><th>prise-connaissance-interdiction-phyto</th></tr></thead>
         <tbody id="tbody-balises"></tbody>
       </table>
     </div>
   </div>
 
-  <!-- ONGLET : PP / BIO / MAEC -->
+  <!-- Onglet PP / Bio / MAEC -->
   <div id="tab-pp" class="tab-content">
     <div id="pp-summary" class="eco-summary-bar"></div>
     <div class="toolbar">
-      <input type="text" id="search-pp" placeholder="🔍 Rechercher (îlot, code, culture…)" oninput="filterPP()">
+      <input type="text" id="search-pp" placeholder="🔍 Rechercher (îlot, code, culture…)" oninput="window.filterPP?.()">
       <div class="stats-badge" id="stats-pp">— parcelles</div>
     </div>
     <div class="table-wrap">
       <table id="table-pp">
-        <thead>
-          <tr>
-            <th>Îlot</th>
-            <th>N° Parc.</th>
-            <th>Code culture</th>
-            <th>Précision</th>
-            <th>Culture</th>
-            <th>reconversion-pp</th>
-            <th>retournement-pp</th>
-            <th>obligation-reimplantation-pp</th>
-            <th>conduite-bio</th>
-            <th>type-conduite-bio</th>
-            <th>conduite-maraichage</th>
-            <th>surface-cible</th>
-            <th>elevage-monogastrique</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Îlot</th><th>N° Parc.</th><th>Code culture</th><th>Précision</th><th>Culture</th><th>reconversion-pp</th><th>retournement-pp</th><th>obligation-reimplantation-pp</th><th>conduite-bio</th><th>type-conduite-bio</th><th>conduite-maraichage</th><th>surface-cible</th><th>elevage-monogastrique</th></tr></thead>
         <tbody id="tbody-pp"></tbody>
       </table>
     </div>
   </div>
 
-  <!-- ONGLET : AIDES DEMANDÉES -->
+  <!-- Onglet Aides demandées -->
   <div id="tab-aides" class="tab-content active">
     <div id="aides-result-area" style="padding:4px 0"></div>
   </div>
 
-  <!-- ONGLET : COMPARAISON 2025/2026 -->
-  <div id="tab-comparaison" class="tab-content">
-    <div id="cmp-upload-area">
-      <div class="cmp-upload-zone" id="cmp-drop-zone" onclick="document.getElementById('cmp-file-input').click()">
-        <div class="icon">📂</div>
-        <p>Chargez le fichier XML <strong>2025</strong> de l'exploitant pour comparer avec 2026</p>
-        <small>Fichier export Telepac campagne 2025 (.xml)</small>
-        <br>
-        <button class="btn-cmp-load" onclick="event.stopPropagation();document.getElementById('cmp-file-input').click()">📂 Charger le XML 2025</button>
+  <!-- Onglet Carte -->
+  <div id="tab-carte" class="tab-content">
+    <div id="map-container">
+      <div class="map-toolbar">
+        <div class="layer-control"><strong>🗂️ Couches</strong>
+          <label><input type="checkbox" id="toggleIlots" checked> 🗺️ Îlots PAC</label>
+          <label><input type="checkbox" id="toggleParcelles" checked> 🌾 Parcelles culturales</label>
+          <label><input type="checkbox" id="toggleMaec" checked> 🌿 MAEC</label>
+        </div>
+        <div class="stats-badge" id="map-stats">Carte prête</div>
       </div>
-      <input type="file" id="cmp-file-input" accept=".xml" style="display:none">
+      <div id="map"></div>
+      <div class="map-legend"><strong>🎨 Légende</strong><div id="map-legend-items" class="legend-items">Chargement…</div></div>
     </div>
-    <div id="cmp-loaded-bar" style="display:none"></div>
-    <div id="cmp-result-area">
-      <div class="cmp-placeholder"><div class="icon">🔍</div><div>Chargez un fichier XML 2025 pour afficher la comparaison</div></div>
+  </div>
+
+  <!-- Onglet SNA -->
+  <div id="tab-sna" class="tab-content">
+    <div id="sna-summary" class="eco-summary-bar"></div>
+    <div class="toolbar">
+      <input type="text" id="search-sna" placeholder="🔍 Rechercher (numéro SNA, catégorie, type…)" oninput="window.filterSNA?.()">
+      <div class="stats-badge" id="stats-sna">— SNA</div>
+    </div>
+    <div class="table-wrap">
+      <table id="table-sna">
+        <thead>
+          <tr>
+            <th onclick="window.sortSNA?.('numero')" data-col="numero">N° SNA ↕</th>
+            <th onclick="window.sortSNA?.('categorie')" data-col="categorie">Catégorie ↕</th>
+            <th onclick="window.sortSNA?.('type')" data-col="type">Type ↕</th>
+            <th onclick="window.sortSNA?.('surface_ha')" data-col="surface_ha">Surface (ha) ↕</th>
+            <th onclick="window.sortSNA?.('ilot')" data-col="ilot">Îlot associé ↕</th>
+            <th onclick="window.sortSNA?.('parcelle')" data-col="parcelle">Parcelle associée ↕</th>
+            <th>Géométrie</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-sna"></tbody>
+      </table>
     </div>
   </div>
 </div>
 
-<script>
-// ===================================================
-//  BASE DE DONNÉES CODES CULTURE PAC 2026 (COMPLÈTE)
-// ===================================================
-const DB = {};
-function addC(nom, code, precs, surf, eco, section) {
-  DB[code + '/'] = { nom, precision_label: '', surface_cat: surf, eco, section };
-  if (precs) for (const p of precs) DB[code + '/' + p.code] = { nom, precision_label: p.label, surface_cat: surf, eco, section };
-}
-function lookup(code, prec) {
-  const p = (prec || '').trim();
-  return DB[code+'/'+p]
-    || DB[code+'/'+p.replace(/^0+/,'')]
-    || DB[code+'/'+p.padStart(3,'0')]
-    || DB[code+'/']
-    || { nom: code, precision_label: p, surface_cat: '?', eco: 'Inconnu', section: '?' };
-}
-
-// 1.1 Céréales
-addC("Avoine d'hiver","AVH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales d'hiver","1.1");
-addC("Avoine de printemps","AVP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales de printemps","1.1");
-addC("Blé dur d'hiver","BDH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales d'hiver","1.1");
-addC("Blé dur de printemps","BDP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales de printemps","1.1");
-addC("Blé tendre d'hiver","BTH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales d'hiver","1.1");
-addC("Blé tendre de printemps","BTP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales de printemps","1.1");
-addC("Orge d'hiver","ORH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales d'hiver","1.1");
-addC("Orge de printemps","ORP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales de printemps","1.1");
-addC("Seigle d'hiver","SEH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales d'hiver","1.1");
-addC("Seigle de printemps","SEP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales de printemps","1.1");
-addC("Sorgho","SOR",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.1");
-addC("Triticale d'hiver","TTH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales d'hiver","1.1");
-addC("Triticale de printemps","TTP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Céréales de printemps","1.1");
-addC("Millet,","MLT",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.1");
-addC("Moha","MOH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.1");
-addC("Maïs grain et ensilage","MIS",[{code:"001",label:"Grain"},{code:"002",label:"Ensilage"},{code:"003",label:"Semences"},{code:"004",label:"Pop-corn"},{code:"005",label:"Maïs doux"}],"TA","Céréales de printemps","1.1");
-addC("Riz","RIZ",[{code:"001",label:"Riz grain"},{code:"002",label:"Riz semences"}],"TA","Autres cultures","1.1");
-addC("Autres céréales ou mélange de céréales","ANR",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.1");
-addC("Sarrasin (blé noir)","SAB",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.1");
-addC("Quinoa","QUI",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.1");
-addC("Autres pseudo-céréales","APC",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.1");
-// 1.2 Oléagineux
-addC("Cameline","CML",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Oléagineux de printemps","1.2");
-addC("Colza d'hiver","CZH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Oléagineux d'hiver","1.2");
-addC("Colza de printemps","CZP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Oléagineux de printemps","1.2");
-addC("Lin non textile d'hiver","LIH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.2");
-addC("Lin non textile de printemps","LIP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.2");
-addC("Moutarde d'hiver","MOT",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Oléagineux d'hiver","1.2");
-addC("Oeillette (pavot)","OEI",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.2");
-addC("Tournesol","TRN",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Oléagineux de printemps","1.2");
-addC("Autres oléagineux printemps/été","OAG",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Oléagineux de printemps","1.2");
-addC("Autres oléagineux d'hiver","OHR",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Oléagineux d'hiver","1.2");
-// 1.3 Protéagineux & légumineuses
-addC("Arachide","ARA",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Féverole d'hiver","FEH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Féverole de printemps","FEP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Lentille","LEN",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Lupin doux","LUP",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Pois chiche","PCH",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Pois protéagineux d'hiver","PHI",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Pois protéagineux de printemps","PPR",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Pois et haricot secs (alimentation humaine)","PHS",[{code:"001",label:"Haricot sec/demi-sec"},{code:"002",label:"Pois cassé"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Pois et haricot frais (alimentation humaine)","PHF",[{code:"001",label:"Haricot frais"},{code:"002",label:"Petit pois frais/semences"},{code:"003",label:"Pois gourmand"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Gesse","GES",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Luzerne","LUZ",[{code:"001",label:"Variété à gazon"},{code:"GREENMED",label:"Greenmed"},{code:"002",label:"Autre variété"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Sainfoin","SAI",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Soja","SOJ",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Trèfle","TRE",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Vesce, mélilot, jarosse, serradelle","VES",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Autre légumineuse à graines ou fourragère","PAG",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-addC("Mélange de légumineuses à graines ou fourragères pures","MLF",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Protéagineux et légumineuses fourragères","1.3");
-// 1.4 Mélanges multi-espèces
-addC("Mélange multi-espèces légumineuses à graines prépond.","MPC",[{code:"001",label:"Légumineuses à graines + céréales"},{code:"002",label:"Autre mélange légumineuses + céréales/oléagineux"}],"TA","Protéagineux et légumineuses fourragères","1.4");
-addC("Mélange multi-espèces légumineuses fourragères prépond.","MLC",[{code:"001",label:"Légumineuses fourragères + céréales/oléagineux"},{code:"002",label:"Autre mélange légumineuses prépond. sans graminées"}],"TA","Protéagineux et légumineuses fourragères","1.4");
-addC("Mélange multi-espèces (céréales, oléagineux, légumineuses) sans graminées","CPL",[{code:"001",label:"Récolte en grains"},{code:"002",label:"Récolte plante entière"}],"TA","Autres cultures","1.4");
-addC("Cultures en inter-rangs (2 cultures >25% chacune)","CID",[{code:"CID",label:"Culture 1 + Culture 2 à préciser"}],"TA","Selon cultures présentes","1.4");
-addC("Cultures en inter-rangs (3 cultures >25%)","CIT",[{code:"CIT",label:"Trois cultures à déclarer"}],"TA","Selon cultures présentes","1.4");
-addC("Maraîchage diversifié","MDI",[{code:"001",label:"Légumes frais et fruits (aide au maraîchage)"},{code:"002",label:"Légumes/fruits/PPAM (non éligible aide)"},{code:"003",label:"Légumes/fruits sous abattis"}],"TA","Autres cultures","1.4");
-addC("Surfaces hautement diversifiées (DOM)","SHD",[],"CP","Sans objet","1.4");
-// 1.5 Prairies temporaires & jachères
-addC("Mélange légumineuses prépond. + graminées fourragères ≤5 ans","MLG",[{code:"001",label:"Mélange implanté l'année"},{code:"002",label:"Mélange déjà en place"}],"TA","Protéagineux et légumineuses fourragères","1.5");
-addC("Prairie temporaire ≤5 ans / mélange avec graminées","PTR",[],"TA","Prairies temporaires et jachères","1.5");
-addC("Graminée pure pour gazon/semences certifiées","GRA",[],"TA","Prairies temporaires et jachères","1.5");
-addC("Jachère (terre arable)","JAC",[{code:"001",label:"Couvert herbacé"},{code:"002",label:"Jachère mellifère (liste nationale)"},{code:"003",label:"Autre jachère fleurie/mellifère"},{code:"004",label:"Jachère faunistique"},{code:"005",label:"Repousses de cultures couvrantes"}],"TA","Prairies temporaires et jachères","1.5");
-// 1.6 Prairies permanentes
-addC("Prairie de 6 ans et plus (herbacé)","PPH",[{code:"001",label:"Essentiellement fauche"},{code:"002",label:"Essentiellement pâturée"},{code:"003",label:"MAEC avant 2023 (PRL)"},{code:"004",label:"Fauchée et pâturée"}],"PP","PP","1.6");
-addC("Prairie herbe prédominante + ligneux présents","SPH",[],"PP","PP","1.6");
-addC("Surface pastorale - ressources ligneuses prédominantes","SPL",[],"PP","PP","1.6");
-addC("Châtaigneraie (porcins/petits ruminants) zones spécifiques","CAE",[{code:"001",label:"Futaie (<100 châtaigniers/ha)"},{code:"002",label:"Taillis sous futaie"},{code:"003",label:"Taillis dense"}],"PP","PP","1.6");
-addC("Chênaie (porcins/petits ruminants) Corse/Causses","CEE",[{code:"001",label:"Futaie (<100 chênes/ha)"},{code:"002",label:"Taillis sous futaie"},{code:"003",label:"Taillis dense"}],"PP","PP","1.6");
-// 1.7 Cultures industrielles & spéciales
-addC("Betterave","BTN",[{code:"001",label:"Betterave à sucre"},{code:"002",label:"Betterave fourragère"},{code:"003",label:"Betterave potagère"},{code:"004",label:"Autre betterave"}],"TA","Plantes sarclées","1.7");
-addC("Chanvre","CHV",[{code:"VAR",label:"Variété selon liste nationale (cf. notice §2.1)"}],"TA","Autres cultures","1.7");
-addC("Canne à sucre","CSA",[{code:"001",label:"Fermage"},{code:"002",label:"Propriété/FVD"},{code:"003",label:"Indivision"},{code:"004",label:"Réforme foncière"},{code:"005",label:"Autre"}],"CP","Sans objet","1.7");
-addC("Houblon","HBL",[],"CP","CP gérée comme une TA - Autres cultures","1.7");
-addC("Lin fibres","LIF",[],"TA","Autres cultures","1.7");
-addC("Pomme de terre","PTC",[{code:"001",label:"Consommation"},{code:"002",label:"Féculière"}],"TA","Plantes sarclées","1.7");
-addC("Tabac","TAB",[],"TA","Autres cultures","1.7");
-// 1.8 Légumes & fruits
-addC("Ail","AIL",[],"TA","Autres cultures","1.8");
-addC("Ananas","ANA",[],"TA","Sans objet","1.8");
-addC("Artichaut","ART",[],"TA","Autres cultures","1.8");
-addC("Banane (export)","BEF",[{code:"001",label:"Fermage"},{code:"002",label:"Propriété/FVD"},{code:"003",label:"Indivision"},{code:"004",label:"Réforme foncière"},{code:"005",label:"Autre"}],"CP","Sans objet","1.8");
-addC("Banane (hors export)","BCA",[],"CP","Sans objet","1.8");
-addC("Carotte","CAR",[{code:"001",label:"Potagère"},{code:"002",label:"Fourragère"},{code:"003",label:"Terrapur"}],"TA","Autres cultures","1.8");
-addC("Céleri","CEL",[],"TA","Autres cultures","1.8");
-addC("Chou","CHU",[{code:"001",label:"Potager"},{code:"002",label:"Fourrager"}],"TA","Autres cultures","1.8");
-addC("Concombre, cornichon, courgette","CCN",[{code:"001",label:"Concombre/Cornichon"},{code:"002",label:"Courgette"}],"TA","Autres cultures","1.8");
-addC("Epinard, oseille, bette","EPI",[{code:"001",label:"Epinard"},{code:"002",label:"Oseille"},{code:"003",label:"Bette"}],"TA","Autres cultures","1.8");
-addC("Fraise (pleine terre)","FRA",[],"TA","Autres cultures","1.8");
-addC("Laitue, endive, salades","LBF",[{code:"001",label:"Endive"},{code:"002",label:"Laitue"},{code:"003",label:"Mâche"},{code:"004",label:"Autres salades"}],"TA","Autres cultures","1.8");
-addC("Melon, pastèque","MLO",[{code:"001",label:"Melon"},{code:"002",label:"Pastèque"}],"TA","Autres cultures","1.8");
-addC("Navet, rutabaga, racines","NVT",[{code:"001",label:"Navet potager"},{code:"002",label:"Navet fourrager/Rutabaga"},{code:"003",label:"Salsifis"},{code:"004",label:"Panais"},{code:"005",label:"Topinambour"},{code:"006",label:"Autre légume racine"}],"TA","Autres cultures","1.8");
-addC("Oignon, échalote","OIG",[{code:"001",label:"Oignon"},{code:"002",label:"Echalote"}],"TA","Autres cultures","1.8");
-addC("Radis","RDI",[{code:"001",label:"Potager"},{code:"002",label:"Fourrager"}],"TA","Autres cultures","1.8");
-addC("Poireau","POR",[],"TA","Autres cultures","1.8");
-addC("Poivron, piment, aubergine","PVP",[{code:"001",label:"Poivron"},{code:"002",label:"Piment"},{code:"003",label:"Aubergine"}],"TA","Autres cultures","1.8");
-addC("Potiron, citrouille, courges","POT",[{code:"001",label:"Potiron"},{code:"002",label:"Citrouille"},{code:"003",label:"Autres courges"}],"TA","Autres cultures","1.8");
-addC("Tomate (pleine terre)","TOM",[{code:"001",label:"Transformation"},{code:"002",label:"Autre tomate"}],"TA","Autres cultures","1.8");
-addC("Tubercule tropical","TBT",[{code:"001",label:"Igname"},{code:"002",label:"Curcuma"},{code:"003",label:"Gingembre"},{code:"004",label:"Autres tubercules (taro, patate douce, arrow-root...)"}],"TA","Autres cultures","1.8");
-addC("Autre légume ou fruit annuel","FLA",[{code:"001",label:"Autre fruit"},{code:"002",label:"Autre légume frais"},{code:"003",label:"Champignon (culture de plein champ)"}],"TA","Autres cultures","1.8");
-addC("Autre légume ou fruit pérenne (hors petits fruits à baie)","FLP",[{code:"001",label:"Asperge"},{code:"002",label:"Rhubarbe"},{code:"003",label:"Autre fruit pérenne"},{code:"004",label:"Autre légume pérenne"}],"CP","CP gérée comme une TA - Autres cultures","1.8");
-// 1.9 Cultures permanentes fruitières
-addC("Agrume","AGR",[{code:"001",label:"Verger de plus de 5 ans"},{code:"002",label:"Verger de 5 ans ou moins"}],"CP","CP","1.9");
-addC("Café et cacao","CAC",[{code:"001",label:"Café"},{code:"002",label:"Cacao"}],"CP","CP","1.9");
-addC("Cerise","CBT",[{code:"001",label:"Cerise bigarreau pour transformation - verger >5ans"},{code:"002",label:"Cerise bigarreau pour transformation - plantation ≤5ans"},{code:"003",label:"Autre cerise - verger >5ans"},{code:"004",label:"Autre cerise - plantation ≤5ans"}],"CP","CP","1.9");
-addC("Châtaigne","CTG",[{code:"001",label:"Verger de plus de 5 ans"},{code:"002",label:"Verger de 5 ans ou moins"}],"CP","CP","1.9");
-addC("Noisette","NOS",[],"CP","CP","1.9");
-addC("Noix (y compris noix de coco)","NOX",[],"CP","CP","1.9");
-addC("Oliveraie","OLI",[],"CP","CP","1.9");
-addC("Pêche (nectarine, brugnon)","PVT",[{code:"001",label:"Pêche Pavie transfo >5ans"},{code:"002",label:"Pêche Pavie transfo ≤5ans"},{code:"003",label:"Autre pêche >5ans"},{code:"004",label:"Autre pêche ≤5ans"}],"CP","CP","1.9");
-addC("Poire","PWT",[{code:"001",label:"Williams transfo >5ans"},{code:"002",label:"Williams transfo ≤5ans"},{code:"003",label:"Autre poire >5ans"},{code:"004",label:"Autre poire ≤5ans"}],"CP","CP","1.9");
-addC("Prune (mirabelle, quetsche...)","PRU",[{code:"001",label:"Prune d'Ente transfo >5ans"},{code:"002",label:"Prune d'Ente transfo ≤5ans"},{code:"003",label:"Autre prune >5ans"},{code:"004",label:"Autre prune ≤5ans"}],"CP","CP","1.9");
-addC("Autre verger","VRG",[{code:"001",label:"Abricot"},{code:"002",label:"Amande"},{code:"003",label:"Pomme"},{code:"004",label:"Autre (avocat, caroube, mangue...)"}],"CP","CP","1.9");
-addC("Petit fruit à baie (hors fraise)","PFR",[{code:"001",label:"Myrtille, mûre"},{code:"002",label:"Framboise"},{code:"003",label:"Groseille, canneberge"},{code:"004",label:"Argousier"},{code:"005",label:"Baie de goji"},{code:"006",label:"Cassis fruit"},{code:"007",label:"Cassis feuille"}],"CP","CP","1.9");
-addC("Plantes médicinales pérennes arbo","PPP",[{code:"001",label:"Ginkgo"},{code:"002",label:"Hamamelis"},{code:"003",label:"Sureau"},{code:"004",label:"Tilleul"},{code:"005",label:"Vigne rouge"},{code:"006",label:"Lingue café/Fleurs jaunes/Cannelle/Bois de rose"},{code:"007",label:"Autre plante médicinale arbo"}],"CP","CP","1.9");
-addC("Vigne","VRC",[{code:"001",label:"Raisin de cuve"},{code:"002",label:"Raisin de table"},{code:"003",label:"Vigne sans production"}],"CP","CP","1.9");
-// 1.10 Aromatiques & médicinales
-addC("Plante aromatique pérenne non arbustive","ARP",[{code:"001",label:"Estragon"},{code:"002",label:"Origan/Marjolaine"},{code:"003",label:"Romarin"},{code:"004",label:"Sarriette montagnes"},{code:"005",label:"Thym"},{code:"006",label:"Autre aromatique pérenne"}],"CP","CP gérée comme une TA - Autres cultures","1.10");
-addC("Vanille","VNL",[],"CP","Sans objet","1.10");
-addC("Aromatiques herbacées non pérennes","AAR",[{code:"001",label:"Aneth/Anis vert"},{code:"002",label:"Basilic"},{code:"005",label:"Fenouil"},{code:"006",label:"Menthe"},{code:"007",label:"Safran"},{code:"008",label:"Sarriette jardins"},{code:"009",label:"Autre aromatique herbacée"},{code:"010",label:"Cerfeuil/Ciboulette"},{code:"011",label:"Carvi"},{code:"012",label:"Coriandre"},{code:"013",label:"Cumin"}],"TA","Autres cultures","1.10");
-addC("Persil","PSL",[],"TA","Autres cultures","1.10");
-addC("Plantes à parfum pérennes","PRF",[{code:"001",label:"Géranium"},{code:"002",label:"Hélichryse"},{code:"003",label:"Vétiver"},{code:"004",label:"Violette"},{code:"005",label:"Ylang-ylang"},{code:"006",label:"Autre parfum pérenne"}],"CP","CP gérée comme une TA - Autres cultures","1.10");
-addC("Lavande, lavandin","LAV",[{code:"001",label:"Lavande"},{code:"002",label:"Lavandin"}],"CP","CP gérée comme une TA - Autres cultures","1.10");
-addC("Plantes médicinales non pérennes","AME",[{code:"001",label:"Angélique"},{code:"002",label:"Bardane"},{code:"004",label:"Livèche"},{code:"005",label:"Marguerite/Millepertuis"},{code:"006",label:"Ortie"},{code:"007",label:"Pâquerette/Pensée"},{code:"008",label:"Plantain psyllium"},{code:"009",label:"Valériane"},{code:"010",label:"Autre médicinale non pérenne"},{code:"011",label:"Camomille"},{code:"012",label:"Chardon-Marie"}],"TA","Autres cultures","1.10");
-addC("Plantes médicinales pérennes (herbacées)","PME",[{code:"001",label:"Gentiane"},{code:"002",label:"Hysope"},{code:"003",label:"Mélisse"},{code:"004",label:"Sauge"},{code:"005",label:"Verveine"},{code:"006",label:"Autre médicinale pérenne"},{code:"007",label:"Cassis bourgeon"}],"CP","CP gérée comme une TA - Autres cultures","1.10");
-addC("Horticulture ornementale","HPC",[],"TA","Autres cultures","1.10");
-// 1.11 Autres / IAE / Boisements
-addC("Autre plante fourragère annuelle","AFG",[],"TA","Autres cultures","1.11");
-addC("Jachère sanitaire imposée","JNO",[],"TA","Non prise en compte","1.11");
-addC("Culture pérenne forte biomasse","MSW",[{code:"001",label:"Miscanthus"},{code:"002",label:"Switchgrass"},{code:"003",label:"Canne fourragère"},{code:"004",label:"Silphie"},{code:"005",label:"Autre biomasse"}],"CP","CP gérée comme une TA - Autres cultures","1.11");
-addC("Autre culture pérenne/jachère bananeraie","ACP",[{code:"001",label:"Bambou"},{code:"002",label:"Jachère entre plantations banane"}],"CP","CP gérée comme une TA - Autres cultures","1.11");
-addC("Pépinière (>1 an)","PEP",[],"CP","CP","1.11");
-addC("Pépinière (<1 an)","PEV",[],"CP","CP gérée comme une TA - Autres cultures","1.11");
-addC("Truffières","TRU",[],"CP","CP","1.11");
-addC("Taillis à courte rotation (TCR)","TCR",[{code:"ESP",label:"Espèce selon liste (peuplier, saule, aulne, charme, châtaignier...)"}],"CP","CP","1.11");
-addC("Boisement aidé","SBO",[],"SBS","Sans objet","1.11");
-addC("Bordure de champ","BOR",[{code:"REF",label:"Rattachement parcelle"}],"Selon parcelle associée","Selon parcelle associée","1.11");
-addC("Bande tampon","BTA",[{code:"REF",label:"Rattachement parcelle"}],"Selon parcelle associée","Selon parcelle associée","1.11");
-addC("Bordure le long forêts sans production","BFS",[{code:"REF",label:"Rattachement parcelle"}],"Selon parcelle associée","Selon parcelle associée","1.11");
-// 1.12 Hors SAU
-addC("Cultures sous serre hors sol","CSS",[],"NA","Sans objet","1.12");
-addC("Marais salants","MRS",[],"NA","Sans objet","1.12");
-addC("Roselière (récolte de sagnes)","SAG",[],"NA","Sans objet","1.12");
-addC("Parc d'élevage monogastrique sol nu","SNU",[],"NA","Sans objet","1.12");
-addC("Surface agricole temporairement non admissible","SNE",[{code:"001",label:"Dépôt temporaire"},{code:"002",label:"Sol nu"},{code:"003",label:"Utilisation non agricole temporaire"},{code:"004",label:"Culture sapins Noël"},{code:"005",label:"Autre"}],"NA","Sans objet","1.12");
-addC("Surface pastorale non utilisée","SIN",[],"NA","Sans objet","1.12");
-
-// ===================================================
-//  PARSE XML
-// ===================================================
-let allRows = [], filteredRows = [], sortCol = null, sortDir = 1, allMaecRows = [], lastXmlDoc = null;
-
-function parseXML(xml) {
-  const doc = new DOMParser().parseFromString(xml, 'application/xml');
-  lastXmlDoc = doc;
-  const NS = 'urn:x-telepac:fr.gouv.agriculture.telepac:echange-producteur';
-  const GML = 'http://www.opengis.net/gml';
-  const t = (el, tag) => { const e = el.getElementsByTagNameNS(NS, tag)[0]; return e ? e.textContent.trim() : ''; };
-  const prod = doc.getElementsByTagNameNS(NS, 'producteur')[0];
-  
-  // Extraction du nom de l'exploitant (personne physique ou morale)
-  let exploitantNom = '';
-  const demandeur = doc.getElementsByTagNameNS(NS, 'demandeur')[0];
-  if (demandeur) {
-    // Essayer d'abord personne morale (société)
-    const identSoc = demandeur.getElementsByTagNameNS(NS, 'identification-societe')[0];
-    if (identSoc) {
-      exploitantNom = t(identSoc, 'exploitation') || t(identSoc, 'raison-sociale') || '';
-    }
-    // Sinon personne physique (individuelle)
-    if (!exploitantNom) {
-      const identIndiv = demandeur.getElementsByTagNameNS(NS, 'identification-individuelle')[0];
-      if (identIndiv) {
-        const identite = identIndiv.getElementsByTagNameNS(NS, 'identite')[0];
-        if (identite) {
-          const nom = t(identite, 'nom') || '';
-          const prenom = t(identite, 'prenoms') || '';
-          exploitantNom = (prenom + ' ' + nom).trim();
-        }
-      }
-    }
-  }
-  
-  const meta = {
-    pacage: prod?.getAttribute('numero-pacage') || '',
-    campagne: prod?.getAttribute('campagne') || '',
-    exploitation: exploitantNom,  // ← remplace l'ancienne valeur
-    siret: t(doc, 'siret')
-  };
-  const rows = [];
-  for (const ilot of doc.getElementsByTagNameNS(NS, 'ilot')) {
-    const iNum = ilot.getAttribute('numero-ilot') || '';
-    const iRef = ilot.getAttribute('numero-ilot-reference') || '';
-    const com = t(ilot, 'commune');
-    for (const parc of ilot.getElementsByTagNameNS(NS, 'parcelle')) {
-      const desc = parc.getElementsByTagNameNS(NS, 'descriptif-parcelle')[0]; if (!desc) continue;
-      const cp = desc.getElementsByTagNameNS(NS, 'culture-principale')[0]; if (!cp) continue;
-      const code = t(cp, 'code-culture');
-      const prec = t(cp, 'precision');
-      const saEl = parc.getElementsByTagNameNS(NS, 'surface-admissible')[0];
-      const porteeEl = parc.getElementsByTagNameNS(NS, 'portee')[0];
-      let area = null;
-      const gc = parc.getElementsByTagNameNS(GML, 'coordinates')[0];
-      if (gc) {
-        const pts = gc.textContent.trim().split(/\s+/).reduce((a,tok) => { if(tok.includes(',')){ const [x,y]=tok.split(',').map(Number); if(!isNaN(x)&&!isNaN(y)) a.push([x,y]); } return a; }, []);
-        if (pts.length>=3) { let s=0; for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length; s+=pts[i][0]*pts[j][1]-pts[j][0]*pts[i][1];} area=Math.abs(s)/2/10000; }
-      }
-      const info = lookup(code, prec);
-      const saAres = saEl ? saEl.textContent.trim() : '';
-      const saHaVal = saAres ? Number(saAres) / 100 : null;
-      const reconvPP = desc.getElementsByTagNameNS(NS, 'reconversion-pp')[0];
-      const retourPP = desc.getElementsByTagNameNS(NS, 'retournement-pp')[0];
-      const obligPP = desc.getElementsByTagNameNS(NS, 'obligation-reimplantation-pp')[0];
-      const agriBio = desc.getElementsByTagNameNS(NS, 'agri-bio')[0];
-      const engMaec = desc.getElementsByTagNameNS(NS, 'engagements-maec')[0];
-      rows.push({ 
-        ilot_num: iNum, ilot_ref: iRef, commune: com, num_parcelle: desc.getAttribute('numero-parcelle')||'', 
-        code, precision: prec, nom_culture: info.nom, precision_label: info.precision_label, 
-        surface_cat: info.surface_cat, eco: info.eco, section: info.section, 
-        culture_sec: cp.getAttribute('culture-secondaire')||'', declare_iae: cp.getAttribute('declare-IAE')||'', 
-        prod_semences: cp.getAttribute('production-semences')||'', longueur_bordure: t(cp,'longueur-bordure'),
-        prod_fermiers: cp.getAttribute('production-fermiers')||'', deshydratation: cp.getAttribute('deshydratation')||'',
-        derogation_ukraine: cp.getAttribute('derogation-ukraine')||'', accident_culture: cp.getAttribute('accident-culture')||'',
-        prise_connaissance_phyto: cp.getAttribute('prise-connaissance-interdiction-phyto')||'', 
-        reconversion_pp: reconvPP ? reconvPP.textContent.trim() : '',
-        retournement_pp: retourPP ? retourPP.textContent.trim() : '',
-        obligation_reimplantation_pp: obligPP ? obligPP.textContent.trim() : '',
-        agri_bio_conduite: agriBio ? agriBio.getAttribute('conduite-bio')||'' : '',
-        agri_bio_type: agriBio ? agriBio.getAttribute('type-conduite-bio')||'' : '',
-        agri_bio_maraichage: agriBio ? agriBio.getAttribute('conduite-maraichage')||'' : '',
-        engmaec_surface_cible: engMaec ? engMaec.getAttribute('surface-cible')||'' : '',
-        engmaec_elevage_mono: engMaec ? engMaec.getAttribute('elevage-monogastrique')||'' : '',
-        surface_admissible_ha: saHaVal,
-        portee: porteeEl?porteeEl.textContent.trim():'', area_ha: area, _unk: info.surface_cat==='?' 
-      });
-    }
-  }
-  // Parse engagements MAEC
-  const maecRows = [];
-  for (const ilot of doc.getElementsByTagNameNS(NS, 'ilot')) {
-    const iNum = ilot.getAttribute('numero-ilot') || '';
-    const iRef = ilot.getAttribute('numero-ilot-reference') || '';
-    const com = t(ilot, 'commune');
-    const maecS = ilot.getElementsByTagNameNS(NS, 'elements-maec-S')[0];
-    if (maecS) {
-      for (const elem of maecS.getElementsByTagNameNS(NS, 'element-surfacique')) {
-        const numElem = t(elem, 'numero-element');
-        const codeMesure = t(elem, 'code-mesure');
-        const premCamp = t(elem, 'premiere-campagne');
-        const dernCamp = t(elem, 'derniere-campagne');
-        // Compute area from MAEC geometry
-        let maecArea = null;
-        const gc = elem.getElementsByTagNameNS(GML, 'coordinates')[0];
-        if (gc) {
-          const pts = gc.textContent.trim().split(/\s+/).reduce((a,tok) => { if(tok.includes(',')){ const [x,y]=tok.split(',').map(Number); if(!isNaN(x)&&!isNaN(y)) a.push([x,y]); } return a; }, []);
-          if (pts.length>=3) { let s=0; for(let i=0;i<pts.length;i++){const j=(i+1)%pts.length; s+=pts[i][0]*pts[j][1]-pts[j][0]*pts[i][1];} maecArea=Math.abs(s)/2/10000; }
-        }
-        // Find matching parcelle info
-        const matchRow = rows.find(r => r.ilot_num === iNum && r.num_parcelle === numElem);
-        maecRows.push({
-          ilot_num: iNum, ilot_ref: iRef, commune: com || (matchRow?.commune||''),
-          num_parcelle: numElem, code_mesure: codeMesure,
-          premiere_campagne: premCamp, derniere_campagne: dernCamp,
-          maec_area_ha: maecArea,
-          surface_admissible_ha: matchRow?.surface_admissible_ha ?? null,
-          nom_culture: matchRow?.nom_culture || '—', code: matchRow?.code || '—'
-        });
-      }
-    }
-  }
-  return { ...meta, rows, maecRows };
-}
-
-function sbadge(s) {
-  const c = s==='TA'?'surf-TA':s==='PP'?'surf-PP':s==='CP'?'surf-CP':'surf-other';
-  return `<span class="${c}">${s}</span>`;
-}
-
-function formatHa(value) {
-  if (value === null || value === undefined || value === '') return '—';
-  const num = typeof value === 'number' ? value : parseFloat(value);
-  if (isNaN(num)) return '—';
-  return num.toFixed(2).replace('.', ',') + ' ha';
-}
-
-function renderApp(data) {
-  allRows = data.rows; filteredRows = [...allRows]; allMaecRows = data.maecRows || [];
-  document.getElementById('pacage-info').textContent = [data.exploitation,`PACAGE : ${data.pacage}`,`SIRET : ${data.siret}`,`Campagne : ${data.campagne}`].filter(Boolean).join('  |  ');
-  const codes = [...new Set(allRows.map(r=>r.code))].sort();
-  const sel = document.getElementById('filter-code');
-  sel.innerHTML = '<option value="">Tous les codes</option>' + codes.map(c=>`<option value="${c}">${c} — ${lookup(c,'').nom}</option>`).join('');
-  renderParcelles(); renderSynthese(); renderEcoregime(); renderIlots(); renderMaec(); renderBalises(); renderPP(); renderAides(); 
-}
-
-function renderParcelles() {
-  document.getElementById('stats-parc').textContent = `${filteredRows.length} parcelle${filteredRows.length>1?'s':''}`;
- const html = filteredRows.map(r => `<tr${r._unk?' class="unknown-row"':''}>
-    <td><b>${r.ilot_num}</b></td>
-    <td><b>${r.num_parcelle}</b></td>
-    <td>${r.commune}</td>
-    <td><span class="code-badge">${r.code}</span></td>
-    <td>${r.precision?`<span class="prec-badge">${r.precision}</span>`:'—'}</td>
-    <td>${r.nom_culture}</td>
-    <td>${r.precision_label||'—'}</td>
-    <td>${sbadge(r.surface_cat)}</td>
-    <td style="font-size:.8rem">${r.eco}</td>
-    <td style="text-align:right;font-weight:600">${r.area_ha!==null?r.area_ha.toFixed(4).replace('.',','):'—'}</td>
-    <td style="text-align:right;font-weight:700;color:#1f5e2c">${formatHa(r.surface_admissible_ha)}</td>
-    <td>${r.culture_sec||'—'}</td>
-    
-    <!-- Colonnes masquées -->
-    <td style="display:none">${r.declare_iae==='true'?'<span class="bool-yes">✓</span>':'<span class="bool-no">—</span>'}</td>
-    <td style="display:none">${r.prod_semences==='true'?'<span class="bool-yes">✓</span>':'<span class="bool-no">—</span>'}</td>
-    
-    <td style="text-align:right;display:none">${r.longueur_bordure||'—'}</td>
-    <td style="display:none">${r.portee||'—'}</td>
-    <td style="display:none"><span class="section-badge">${r.section}</span></td>
-    <td style="font-size:.75rem;color:#aaa;display:none">${r.ilot_ref}</td>
-   </tr>`).join('') || '<tr><td colspan="17" style="text-align:center;color:#aaa;padding:24px">Aucune parcelle trouvée</td></tr>';
-  document.getElementById('tbody-parcelles').innerHTML = html;
-}
-
-function renderSynthese() {
-  const grps = {};
-  for (const r of allRows) {
-    const k = r.code+'/'+(r.precision||'');
-    if (!grps[k]) grps[k]={
-      code:r.code, precision:r.precision, nom_culture:r.nom_culture, precision_label:r.precision_label,
-      surface_cat:r.surface_cat, eco:r.eco, section:r.section, count:0, ha:0, sa_ha:0
-    };
-    grps[k].count++; 
-    if(r.area_ha) grps[k].ha += r.area_ha;
-    if(r.surface_admissible_ha) grps[k].sa_ha += r.surface_admissible_ha;
-  }
-  const list = Object.values(grps).sort((a,b)=>b.ha - a.ha);
-  const tHa = allRows.reduce((s,r)=>s+(r.area_ha||0),0);
-  const tSA = allRows.reduce((s,r)=>s+(r.surface_admissible_ha||0),0);
-  document.getElementById('synth-summary').innerHTML = [
-    [allRows.length,'Parcelles totales'],
-    [tHa.toFixed(2).replace('.',','),'Surface calculée (ha)'],
-    [tSA.toFixed(2).replace('.',','),'Surface admissible (ha)'],
-    [[...new Set(allRows.map(r=>r.code))].length,'Codes cultures'],
-    [list.length,'Groupes code×précision']
-  ].map(([v,l])=>`<div class="synth-kpi"><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join('');
-  
-  document.getElementById('tbody-synth').innerHTML = list.map(g=>{
-    return `<tr>
-      <td><span class="code-badge">${g.code}</span></td>
-      <td><b>${g.nom_culture}</b></td>
-      <td>${g.precision?`<span class="prec-badge">${g.precision}</span>`:'—'}</td>
-      <td>${g.precision_label||'—'}</td>
-      <td>${sbadge(g.surface_cat)}</td>
-      <td style="font-size:.82rem">${g.eco}</td>
-      <td><span class="section-badge">${g.section}</span></td>
-      <td style="text-align:center;font-weight:600">${g.count}</td>
-      <td style="text-align:right;font-weight:700">${g.ha.toFixed(2).replace('.',',')}</td>
-      <td style="text-align:right;font-weight:700;color:#1f5e2c">${formatHa(g.sa_ha)}</td>
-     </tr>`;
-  }).join('');
-
-  // --- Camembert surfaces admissibles par culture ---
-  // Regroupe par code culture (fusion des précisions) pour lisibilité
-  const pieData = {};
-  for (const g of list) {
-    if (!g.sa_ha || g.sa_ha <= 0) continue;
-    const lbl = g.nom_culture || g.code;
-    if (!pieData[lbl]) pieData[lbl] = 0;
-    pieData[lbl] += g.sa_ha;
-  }
-  const pieEntries = Object.entries(pieData).sort((a,b)=>b[1]-a[1]);
-  const MAX_SLICES = 10;
-  let chartSlices = pieEntries.slice(0, MAX_SLICES);
-  if (pieEntries.length > MAX_SLICES) {
-    const autresHa = pieEntries.slice(MAX_SLICES).reduce((s,[,v])=>s+v,0);
-    chartSlices.push(['Autres', autresHa]);
-  }
-  const chartTotal = chartSlices.reduce((s,[,v])=>s+v,0);
-
-  // Palette de couleurs harmonieuse
-  const palette = ['#2d6a2f','#5aad5c','#8fd18f','#c3e8c3','#4a90d9','#7bb8f0','#f0c060','#e87040','#a060c0','#c0a0e0','#999'];
-
-  // Dessin SVG camembert
-  const W = 320, H = 320, CX = 160, CY = 155, R = 120, RH = 100;
-  let angle = -Math.PI / 2;
-  let sliceSvg = '';
-  const legendItems = [];
-  chartSlices.forEach(([lbl, val], i) => {
-    const frac = val / chartTotal;
-    const a1 = angle, a2 = angle + frac * 2 * Math.PI;
-    const x1=CX+R*Math.cos(a1), y1=CY+R*Math.sin(a1);
-    const x2=CX+R*Math.cos(a2), y2=CY+R*Math.sin(a2);
-    const laf = frac > 0.5 ? 1 : 0;
-    const color = palette[i % palette.length];
-    // Label dans la tranche si assez grand
-    let labelSvg = '';
-    if (frac >= 0.06) {
-      const am = (a1+a2)/2;
-      const lx = CX+(R*0.62)*Math.cos(am), ly = CY+(R*0.62)*Math.sin(am);
-      labelSvg = `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="white" font-weight="700" style="pointer-events:none">${(frac*100).toFixed(1).replace('.',',')}%</text>`;
-    }
-    sliceSvg += `<path d="M${CX},${CY} L${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${laf},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z"
-      fill="${color}" stroke="white" stroke-width="1.5" style="cursor:pointer;transition:opacity 0.15s"
-      onmouseover="this.style.opacity=0.78" onmouseout="this.style.opacity=1">
-      <title>${lbl} : ${val.toFixed(2).replace('.',',')} ha (${(frac*100).toFixed(1).replace('.',',')}%)</title>
-    </path>${labelSvg}`;
-    legendItems.push({lbl, val, frac, color});
-    angle = a2;
-  });
-
-  const legendHtml = legendItems.map(({lbl,val,frac,color})=>`
-    <div style="display:flex;align-items:center;gap:7px;font-size:0.78rem;margin-bottom:4px">
-      <span style="width:13px;height:13px;border-radius:3px;background:${color};flex-shrink:0;display:inline-block"></span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${lbl}">${lbl}</span>
-      <span style="font-weight:700;color:#1f5e2c;white-space:nowrap">${val.toFixed(2).replace('.',',')} ha</span>
-      <span style="color:#888;white-space:nowrap">(${(frac*100).toFixed(1).replace('.',',')}%)</span>
-    </div>`).join('');
-
-  document.getElementById('synth-charts').innerHTML = `
-    <div style="background:white;border-radius:16px;border:1px solid #deecda;padding:16px 20px;flex:0 0 auto">
-      <div style="font-weight:700;color:#1f5422;margin-bottom:10px;font-size:0.95rem">🥧 Répartition par culture (surf. adm. Télépac)</div>
-      <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${sliceSvg}
-        <text x="${CX}" y="${CY-8}" text-anchor="middle" font-size="13" fill="#1f5422" font-weight="700">${chartTotal.toFixed(2).replace('.',',')} ha</text>
-        <text x="${CX}" y="${CY+10}" text-anchor="middle" font-size="10" fill="#778">surface adm. totale</text>
-      </svg>
-    </div>
-    <div style="background:white;border-radius:16px;border:1px solid #deecda;padding:16px 20px;flex:1;min-width:220px;max-height:330px;overflow-y:auto">
-      <div style="font-weight:700;color:#1f5422;margin-bottom:10px;font-size:0.95rem">📋 Légende</div>
-      ${legendHtml}
-    </div>`;
-}
-
-function renderEcoregime() {
-  const groups = new Map();
-  for (const r of allRows) {
-    const ecoCat = r.eco || "Non classé";
-    if (!groups.has(ecoCat)) groups.set(ecoCat, []);
-    groups.get(ecoCat).push(r);
-  }
-  
-  const totalHa = allRows.reduce((s,r)=>s+(r.area_ha||0),0);
-  const totalAdmHa = allRows.reduce((s,r)=>s+(r.surface_admissible_ha||0),0);
-  document.getElementById('eco-summary').innerHTML = `
-    <div class="eco-kpi"><div class="val">${allRows.length}</div><div class="lbl">Parcelles totales</div></div>
-    <div class="eco-kpi"><div class="val">${totalHa.toFixed(2).replace('.',',')} ha</div><div class="lbl">Surface calculée</div></div>
-    <div class="eco-kpi"><div class="val">${totalAdmHa.toFixed(2).replace('.',',')} ha</div><div class="lbl">Surface admissible totale</div></div>
-    <div class="eco-kpi"><div class="val">${groups.size}</div><div class="lbl">Catégories écorégime</div></div>
-  `;
-  
-  // --- Tableau synthèse PP / CP / TA (avec "CP gérée comme une TA" comptée en TA) ---
-  const surfTypeTotals = { TA: 0, PP: 0, CP: 0 };
-  for (const r of allRows) {
-    const sa = r.surface_admissible_ha || 0;
-    if (!sa) continue;
-    const eco = r.eco || '';
-    const cat = r.surface_cat || '';
-    // "CP gérée comme une TA - Autres cultures" → comptée en TA
-    if (eco === 'CP gérée comme une TA - Autres cultures') {
-      surfTypeTotals.TA += sa;
-    } else if (cat === 'PP') {
-      surfTypeTotals.PP += sa;
-    } else if (cat === 'CP') {
-      surfTypeTotals.CP += sa;
-    } else if (cat === 'TA') {
-      surfTypeTotals.TA += sa;
-    }
-  }
-  // Tableau synthèse : % sur SAU totale admissible pour tous les types
-  const surfTypeTotal = surfTypeTotals.TA + surfTypeTotals.PP + surfTypeTotals.CP; // SAU totale
-  // surfTypeTotalTA = TA + CP-comptée-en-TA, utilisé comme dénominateur dans les groupes dépliables écorégime
-  const surfTypeTotalTA = surfTypeTotals.TA;
-
-  const surfTypeRows = [
-    { lbl: '🌱 Terre arable (TA)', key: 'TA', color: '#1a5080', bg: '#d0eaff', bar: '#4a90d9' },
-    { lbl: '🐄 Prairie permanente (PP)', key: 'PP', color: '#2a6b2f', bg: '#d4f0d4', bar: '#5aad5c' },
-    { lbl: '🌳 Culture permanente (CP)', key: 'CP', color: '#aa6f20', bg: '#fde9cf', bar: '#e87040' },
-  ];
-
-  const surfTypeHtml = `
-    <div style="background:white;border-radius:14px;border:1px solid #deecda;margin-bottom:20px;overflow:hidden">
-      <div style="background:#eef5ea;padding:11px 18px;border-bottom:1px solid #ddecd8;font-weight:700;color:#1f5422;font-size:0.95rem">
-        📐 Répartition surface admissible par type de sol <span style="font-size:0.78rem;font-weight:400;color:#557055">(« CP gérée comme une TA » comptabilisée en Terre arable)</span>
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
-        <thead>
-          <tr style="background:#f4faf2">
-            <th style="padding:8px 14px;text-align:left;color:#1a3e1a;font-weight:600;border-bottom:1px solid #ddecd8">Type de surface</th>
-            <th style="padding:8px 14px;text-align:right;color:#1a3e1a;font-weight:600;border-bottom:1px solid #ddecd8">Surface adm. (ha)</th>
-            <th style="padding:8px 14px;text-align:right;color:#1a3e1a;font-weight:600;border-bottom:1px solid #ddecd8">% SAU totale adm.</th>
-            <th style="padding:8px 14px;color:#1a3e1a;font-weight:600;border-bottom:1px solid #ddecd8;min-width:140px">Répartition</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${surfTypeRows.map(({lbl, key, color, bg, bar}) => {
-            const val = surfTypeTotals[key];
-            const pct = surfTypeTotal > 0 ? (val / surfTypeTotal * 100) : 0;
-            return `<tr>
-              <td style="padding:9px 14px;font-weight:600"><span style="background:${bg};color:${color};padding:2px 10px;border-radius:12px;font-size:0.8rem">${lbl}</span></td>
-              <td style="padding:9px 14px;text-align:right;font-weight:700;color:#1f5422">${val.toFixed(2).replace('.',',')} ha</td>
-              <td style="padding:9px 14px;text-align:right;font-weight:700;color:#1f5422">${pct.toFixed(2).replace('.',',')} %</td>
-              <td style="padding:9px 14px">
-                <div style="background:#e0ecd8;border-radius:20px;height:10px;overflow:hidden">
-                  <div style="background:${bar};height:100%;border-radius:20px;width:${Math.min(pct,100).toFixed(2)}%;transition:width 0.4s"></div>
-                </div>
-              </td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-        <tfoot>
-          <tr style="background:#1a4a1c;color:white;font-weight:700">
-            <td style="padding:9px 14px">TOTAL SAU admissible</td>
-            <td style="padding:9px 14px;text-align:right">${surfTypeTotal.toFixed(2).replace('.',',')} ha</td>
-            <td style="padding:9px 14px;text-align:right">100,00 %</td>
-            <td style="padding:9px 14px"></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>`;
-
-  // Injection avant le container, avec nettoyage pour éviter les doublons au re-render
-  const prevSurfTable = document.getElementById('eco-surf-type-table');
-  if (prevSurfTable) prevSurfTable.remove();
-  document.getElementById('ecoregime-container').insertAdjacentHTML('beforebegin', `<div id="eco-surf-type-table">${surfTypeHtml}</div>`);
-
-  const container = document.getElementById('ecoregime-container');
-  const sortedGroups = Array.from(groups.entries()).sort((a,b)=>b[1].reduce((s,p)=>s+(p.surface_admissible_ha||0),0) - a[1].reduce((s,p)=>s+(p.surface_admissible_ha||0),0));
-  
-  container.innerHTML = sortedGroups.map(([cat, parcelles]) => {
-    const haTotal = parcelles.reduce((s,p)=>s+(p.area_ha||0),0);
-    const haAdm = parcelles.reduce((s,p)=>s+(p.surface_admissible_ha||0),0);
-    const nbCodes = new Set(parcelles.map(p=>p.code)).size;
-    // Dénominateur selon type de catégorie :
-    // PP → SAU totale admissible
-    // TA, CP-gérée-comme-TA → surface TA + CP-en-TA
-    // CP pure → surface TA + CP-en-TA
-    const isPP = cat === 'PP';
-    const catDenom = isPP ? totalAdmHa : surfTypeTotalTA;
-    const catDenomLbl = (ispp) => ispp ? 'SAU totale adm.' : 'surf. TA + CP-en-TA';
-    const pct = catDenom > 0 ? (haAdm / catDenom * 100) : 0;
-
-    return `<div class="eco-group collapsed">
-      <div class="eco-header" onclick="toggleEcoGroup(this)">
-        <span class="expand-icon">▼</span>
-        <div class="eco-title">🌾 ${cat}</div>
-        <div class="eco-stats">
-          <span>📦 ${parcelles.length} parcelles</span>
-          <span>🌍 ${haTotal.toFixed(2).replace('.',',')} ha</span>
-          <span>✅ ${haAdm.toFixed(2).replace('.',',')} ha adm.</span>
-          <span style="background:#eef5ea;color:#1f5422;font-weight:700">📊 ${pct.toFixed(1).replace('.',',')} % ${catDenomLbl(isPP)}</span>
-          <span>🏷️ ${nbCodes} codes</span>
-        </div>
-      </div>
-      <div class="eco-detail-wrap">
-        <div style="background:#f7fcf7;padding:8px 16px;border-bottom:1px solid #ddecd8;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="font-size:0.8rem;color:#2d572d;font-weight:600">Part de la ${catDenomLbl(isPP)} :</span>
-          <span style="font-size:0.95rem;font-weight:700;color:#1f5422">${pct.toFixed(2).replace('.',',')} %</span>
-          <span style="font-size:0.78rem;color:#778">(${haAdm.toFixed(2).replace('.',',')} ha / ${catDenom.toFixed(2).replace('.',',')} ha)</span>
-          <div style="flex:1;background:#e0ecd8;border-radius:20px;height:8px;max-width:200px;overflow:hidden">
-            <div style="background:#2d6a2f;height:100%;border-radius:20px;width:${Math.min(pct,100).toFixed(2)}%"></div>
-          </div>
-        </div>
-        <table class="eco-detail-table">
-          <thead><tr><th>Îlot</th><th>N° parcelle</th><th>Commune</th><th>Code</th><th>Culture</th><th>Surf. agri.</th><th>Surface (ha)</th><th>Surf. adm. (ha)</th><th>% ${catDenomLbl(isPP)}</th><th>Section</th></tr></thead>
-          <tbody>
-            ${parcelles.map(p => {
-              const pPct = catDenom > 0 && p.surface_admissible_ha ? (p.surface_admissible_ha / catDenom * 100) : 0;
-              return `<tr>
-              <td><b>${p.ilot_num}</b></td>
-              <td>${p.num_parcelle}</td>
-              <td>${p.commune}</td>
-              <td><span class="code-badge">${p.code}</span></td>
-              <td>${p.nom_culture}</td>
-              <td>${sbadge(p.surface_cat)}</td>
-              <td style="text-align:right">${p.area_ha ? p.area_ha.toFixed(2).replace('.',',') : '—'}</td>
-              <td style="text-align:right">${formatHa(p.surface_admissible_ha)}</td>
-              <td style="text-align:right;font-size:0.78rem;color:#2d6a2f;font-weight:600">${p.surface_admissible_ha ? pPct.toFixed(2).replace('.',',') + ' %' : '—'}</td>
-              <td><span class="section-badge">${p.section}</span></td>
-             </tr>`;
-            }).join('')}
-          </tbody>
-         </table>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// FONCTION : Rendu de l'onglet Synthèse par îlot (tableau simplifié)
-function renderIlots() {
-  const groups = new Map();
-  for (const r of allRows) {
-    const ilotNum = r.ilot_num || "Sans îlot";
-    if (!groups.has(ilotNum)) groups.set(ilotNum, []);
-    groups.get(ilotNum).push(r);
-  }
-  
-  const totalHa = allRows.reduce((s,r)=>s+(r.area_ha||0),0);
-  const totalAdm = allRows.reduce((s,r)=>s+(r.surface_admissible_ha||0),0);
-  const totalParcelles = allRows.length;
-  
-  document.getElementById('ilot-summary').innerHTML = `
-    <div class="eco-kpi"><div class="val">${totalParcelles}</div><div class="lbl">Parcelles totales</div></div>
-    <div class="eco-kpi"><div class="val">${totalHa.toFixed(2).replace('.',',')} ha</div><div class="lbl">Surface graphique totale</div></div>
-    <div class="eco-kpi"><div class="val">${totalAdm.toFixed(2).replace('.',',')} ha</div><div class="lbl">Surface admissible totale</div></div>
-    <div class="eco-kpi"><div class="val">${groups.size}</div><div class="lbl">Nombre d'îlots</div></div>
-  `;
-  
-  const container = document.getElementById('ilots-container');
-  const sortedGroups = Array.from(groups.entries()).sort((a,b)=>parseInt(a[0]||0,10)-parseInt(b[0]||0,10));
-  
-  let rows = sortedGroups.map(([ilotNum, parcelles]) => {
-    const haTotal = parcelles.reduce((s,p)=>s+(p.area_ha||0),0);
-    const haAdm = parcelles.reduce((s,p)=>s+(p.surface_admissible_ha||0),0);
-    const surfacePercent = totalHa > 0 ? (haTotal / totalHa * 100) : 0;
-    const ilotRef = parcelles[0]?.ilot_ref || '—';
-    return `<tr>
-      <td style="text-align:center;font-weight:700">${ilotNum}</td>
-      <td style="font-size:.8rem;color:#555">${ilotRef}</td>
-      <td style="text-align:right;font-weight:600">${haTotal.toFixed(2).replace('.',',')} ha</td>
-      <td style="text-align:right;font-weight:600;color:#1f5e2c">${haAdm > 0 ? haAdm.toFixed(2).replace('.',',') + ' ha' : '—'}</td>
-      <td style="text-align:right">
-        <span style="display:inline-flex;align-items:center;gap:8px">
-          ${surfacePercent.toFixed(1).replace('.',',')} %
-          <span class="surface-progress"><span class="surface-progress-bar" style="width:${Math.min(surfacePercent,100)}%"></span></span>
-        </span>
-      </td>
-    </tr>`;
-  }).join('');
-
-  container.innerHTML = `
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th style="text-align:center">N° Îlot</th>
-            <th style="text-align:left">Réf. îlot</th>
-            <th style="text-align:right">Surface graphique (ha)</th>
-            <th style="text-align:right">Surface admissible (ha)</th>
-            <th style="text-align:right">% du total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-        <tfoot>
-          <tr style="background:#1a4a1c;color:white;font-weight:700">
-            <td style="padding:10px 8px;text-align:center">TOTAL</td>
-            <td style="padding:10px 8px;"></td>
-            <td style="padding:10px 8px;text-align:right">${totalHa.toFixed(2).replace('.',',')} ha</td>
-            <td style="padding:10px 8px;text-align:right">${totalAdm > 0 ? totalAdm.toFixed(2).replace('.',',') + ' ha' : '—'}</td>
-            <td style="padding:10px 8px;text-align:right">100,0 %</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>`;
-}
-
-window.toggleEcoGroup = function(header) {
-  const group = header.closest('.eco-group');
-  group.classList.toggle('collapsed');
-};
-
-window.toggleIlotGroup = function(header) {
-  const group = header.closest('.ilot-group');
-  group.classList.toggle('collapsed');
-};
-
-function filterParcelles() {
-  const s = document.getElementById('search-parc').value.toLowerCase();
-  const fc = document.getElementById('filter-code').value;
-  const fs = document.getElementById('filter-surf').value;
-  filteredRows = allRows.filter(r => {
-    if (fc && r.code!==fc) return false;
-    if (fs && r.surface_cat!==fs) return false;
-    if (s && ![r.ilot_num,r.num_parcelle,r.code,r.precision,r.nom_culture,r.precision_label,r.commune,r.eco,r.culture_sec].join(' ').toLowerCase().includes(s)) return false;
-    return true;
-  });
-  if (sortCol) applySort(); else renderParcelles();
-}
-
-function sortTable(col) {
-  if (sortCol===col) sortDir*=-1; else {sortCol=col;sortDir=1;}
-  document.querySelectorAll('#table-parcelles thead th').forEach(th=>th.classList.toggle('sorted',th.getAttribute('data-col')===col));
-  applySort();
-}
-
-function applySort() {
-  filteredRows.sort((a,b)=>{
-    let av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
-    if (sortCol === 'surface_admissible_ha') {
-      av = typeof av === 'number' ? av : 0;
-      bv = typeof bv === 'number' ? bv : 0;
-      return sortDir * (av - bv);
-    }
-    if(typeof av==='number'&&typeof bv==='number') return sortDir*(av-bv);
-    const an=parseFloat(av),bn=parseFloat(bv);
-    if(!isNaN(an)&&!isNaN(bn)) return sortDir*(an-bn);
-    return sortDir*String(av).localeCompare(String(bv),'fr');
-  });
-  renderParcelles();
-}
-
-function handleFile(file) {
-  if (!file?.name.toLowerCase().endsWith('.xml')) { alert('Fichier XML requis.'); return; }
-  document.getElementById('loading').classList.add('show');
-  const r = new FileReader();
-  r.onload = e => {
-    try {
-      const d = parseXML(e.target.result);
-      if (!d.rows.length) { alert('Aucune parcelle trouvée dans ce fichier.'); return; }
-      renderApp(d);
-      document.getElementById('upload-screen').style.display='none';
-      document.getElementById('app-screen').style.display='block';
-    } catch(err) { alert('Erreur : '+err.message); console.error(err); }
-    finally { document.getElementById('loading').classList.remove('show'); }
-  };
-  r.onerror = ()=>{ alert('Impossible de lire le fichier.'); document.getElementById('loading').classList.remove('show'); };
-  r.readAsText(file,'ISO-8859-1');
-}
-
-function resetApp() { document.getElementById('app-screen').style.display='none'; document.getElementById('upload-screen').style.display='flex'; document.getElementById('file-input').value=''; sortCol=null;sortDir=1; allMaecRows=[]; }
-
-function renderMaec() {
-  const rows = allMaecRows;
-  const mesures = [...new Set(rows.map(r=>r.code_mesure))];
-  const totalSurf = rows.reduce((s,r)=>s+(r.maec_area_ha||0),0);
-
-  document.getElementById('maec-summary').innerHTML = `
-    <div class="eco-kpi"><div class="val">${rows.length}</div><div class="lbl">Parcelles engagées</div></div>
-    <div class="eco-kpi"><div class="val">${totalSurf.toFixed(2).replace('.',',')} ha</div><div class="lbl">Surface totale engagée</div></div>
-    <div class="eco-kpi"><div class="val">${mesures.length}</div><div class="lbl">Mesure${mesures.length>1?'s':''} MAEC</div></div>
-  `;
-
-  if (!rows.length) {
-    document.getElementById('maec-container').innerHTML = `<div style="text-align:center;padding:40px;color:#888;background:white;border-radius:16px;border:1px solid #deecda">
-      <div style="font-size:2rem;margin-bottom:8px">📋</div>
-      <div>Aucun engagement MAEC trouvé dans ce fichier.</div>
-    </div>`;
-    return;
-  }
-
-  // Group by mesure
-  const byMesure = new Map();
-  for (const r of rows) {
-    if (!byMesure.has(r.code_mesure)) byMesure.set(r.code_mesure, []);
-    byMesure.get(r.code_mesure).push(r);
-  }
-
-  document.getElementById('maec-container').innerHTML = Array.from(byMesure.entries()).map(([mesure, parcelles]) => {
-    const haTot = parcelles.reduce((s,p)=>s+(p.maec_area_ha||0),0);
-    const premCamp = parcelles[0]?.premiere_campagne || '?';
-    const dernCamp = parcelles[0]?.derniere_campagne || '?';
-    const anneeDebut = premCamp;
-    const anneeFin = dernCamp;
-    const anneesRestantes = dernCamp !== '?' ? Math.max(0, parseInt(dernCamp) - 2026) : '?';
-    const rows_html = parcelles.map(p => `<tr>
-      <td style="text-align:center;font-weight:700">${p.ilot_num}</td>
-      <td style="text-align:center;font-weight:700">${p.num_parcelle}</td>
-      <td>${p.commune || '—'}</td>
-      <td style="text-align:right;font-weight:600">${p.maec_area_ha ? p.maec_area_ha.toFixed(2).replace('.',',') + ' ha' : '—'}</td>
-      <td style="text-align:center">
-        <span style="background:#d0eaff;color:#1a5080;padding:2px 8px;border-radius:12px;font-weight:600;font-size:0.8rem">${p.premiere_campagne || '?'}</span>
-      </td>
-      <td style="text-align:center">
-        <span style="background:#fde9cf;color:#aa6f20;padding:2px 8px;border-radius:12px;font-weight:600;font-size:0.8rem">${p.derniere_campagne || '?'}</span>
-      </td>
-    </tr>`).join('');
-
-    return `<div class="eco-group" style="margin-bottom:20px">
-      <div class="eco-header" onclick="toggleEcoGroup(this)">
-        <span class="expand-icon">▼</span>
-        <div class="eco-title">📝 ${mesure}</div>
-        <div class="eco-stats">
-          <span>🌍 ${parcelles.length} parcelle${parcelles.length>1?'s':''}</span>
-          <span>📐 ${haTot.toFixed(2).replace('.',',')} ha</span>
-          <span>🗓️ ${anneeDebut} → ${anneeFin}</span>
-          <span style="background:${anneesRestantes===0?'#ffd0d0':anneesRestantes<=1?'#fde9cf':'#d4f0d4'};color:${anneesRestantes===0?'#a00':anneesRestantes<=1?'#aa6f20':'#2a6b2f'}">${anneesRestantes === 0 ? '⚠️ Terminé' : `${anneesRestantes} an${anneesRestantes>1?'s':''} restant${anneesRestantes>1?'s':''}`}</span>
-        </div>
-      </div>
-      <div class="eco-detail-wrap">
-        <table class="eco-detail-table">
-          <thead><tr>
-            <th style="text-align:center">Îlot</th>
-            <th style="text-align:center">N° Parcelle</th>
-            <th>Commune</th>
-            <th style="text-align:right">Surface engagée</th>
-            <th style="text-align:center">1ère campagne</th>
-            <th style="text-align:center">Dernière campagne</th>
-          </tr></thead>
-          <tbody>${rows_html}</tbody>
-          <tfoot>
-            <tr style="background:#eef5ea;font-weight:700">
-              <td colspan="3" style="padding:8px 10px;text-align:right">Total</td>
-              <td style="padding:8px 10px;text-align:right">${haTot.toFixed(2).replace('.',',')} ha</td>
-              <td colspan="2"></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function renderBalises() {
-  const rows = allRows;
-  document.getElementById('stats-balises').textContent = `${rows.length} parcelle${rows.length>1?'s':''}`;
-  const boolCell = v => v === 'true' ? '<span class="bool-yes">✓ true</span>' : v === 'false' ? '<span class="bool-no">✗ false</span>' : v ? `<span style="font-family:monospace;font-size:.8rem">${v}</span>` : '<span class="bool-no">—</span>';
-  document.getElementById('tbody-balises').innerHTML = rows.map(r => `<tr>
-    <td><b>${r.ilot_num}</b></td>
-    <td><b>${r.num_parcelle}</b></td>
-    <td><span class="code-badge">${r.code}</span></td>
-    <td>${r.precision ? `<span class="prec-badge">${r.precision}</span>` : '—'}</td>
-    <td>${r.nom_culture}</td>
-    <td style="text-align:center">${boolCell(r.prod_semences)}</td>
-    <td style="text-align:center">${boolCell(r.prod_fermiers)}</td>
-    <td style="text-align:center">${boolCell(r.deshydratation)}</td>
-    <td style="text-align:center">${boolCell(r.derogation_ukraine)}</td>
-    <td style="text-align:center;font-family:monospace;font-size:.85rem">${r.culture_sec || '<span class=\"bool-no\">—</span>'}</td>
-    <td style="text-align:center">${boolCell(r.accident_culture)}</td>
-    <td style="text-align:center">${boolCell(r.declare_iae)}</td>
-    <td style="text-align:center">${boolCell(r.prise_connaissance_phyto)}</td>
-   </tr>`).join('') || '<tr><td colspan="13" style="text-align:center;color:#aaa;padding:24px">Aucune parcelle trouvée</td></tr>';
-}
-
-let balisesFiltered = [];
-function filterBalises() {
-  const s = document.getElementById('search-balises').value.toLowerCase();
-  const rows = s ? allRows.filter(r => [r.ilot_num, r.num_parcelle, r.code, r.precision, r.nom_culture].join(' ').toLowerCase().includes(s)) : allRows;
-  balisesFiltered = rows;
-  document.getElementById('stats-balises').textContent = `${rows.length} parcelle${rows.length>1?'s':''}`;
-  const boolCell = v => v === 'true' ? '<span class="bool-yes">✓ true</span>' : v === 'false' ? '<span class="bool-no">✗ false</span>' : v ? `<span style="font-family:monospace;font-size:.8rem">${v}</span>` : '<span class="bool-no">—</span>';
-  document.getElementById('tbody-balises').innerHTML = rows.map(r => `<tr>
-    <td><b>${r.ilot_num}</b></td>
-    <td><b>${r.num_parcelle}</b></td>
-    <td><span class="code-badge">${r.code}</span></td>
-    <td>${r.precision ? `<span class="prec-badge">${r.precision}</span>` : '—'}</td>
-    <td>${r.nom_culture}</td>
-    <td style="text-align:center">${boolCell(r.prod_semences)}</td>
-    <td style="text-align:center">${boolCell(r.prod_fermiers)}</td>
-    <td style="text-align:center">${boolCell(r.deshydratation)}</td>
-    <td style="text-align:center">${boolCell(r.derogation_ukraine)}</td>
-    <td style="text-align:center;font-family:monospace;font-size:.85rem">${r.culture_sec || '<span class=\"bool-no\">—</span>'}</td>
-    <td style="text-align:center">${boolCell(r.accident_culture)}</td>
-    <td style="text-align:center">${boolCell(r.declare_iae)}</td>
-    <td style="text-align:center">${boolCell(r.prise_connaissance_phyto)}</td>
-   </tr>`).join('') || '<tr><td colspan="13" style="text-align:center;color:#aaa;padding:24px">Aucune parcelle trouvée</td></tr>';
-}
-
-function renderPP() {
-  const rows = allRows;
-  document.getElementById('stats-pp').textContent = `${rows.length} parcelle${rows.length>1?'s':''}`;
-  const boolCell = v => v === 'true' ? '<span class="bool-yes">✓ true</span>' : v === 'false' ? '<span class="bool-no">✗ false</span>' : v ? `<span style="font-family:monospace;font-size:.8rem">${v}</span>` : '<span class="bool-no">—</span>';
-  const textCell = v => v ? `<span style="font-family:monospace;font-weight:700;font-size:.82rem">${v}</span>` : '<span class="bool-no">—</span>';
-  document.getElementById('tbody-pp').innerHTML = rows.map(r => `<tr>
-    <td><b>${r.ilot_num}</b></td>
-    <td><b>${r.num_parcelle}</b></td>
-    <td><span class="code-badge">${r.code}</span></td>
-    <td>${r.precision ? `<span class="prec-badge">${r.precision}</span>` : '—'}</td>
-    <td>${r.nom_culture}</td>
-    <td style="text-align:center">${boolCell(r.reconversion_pp)}</td>
-    <td style="text-align:center">${boolCell(r.retournement_pp)}</td>
-    <td style="text-align:center">${boolCell(r.obligation_reimplantation_pp)}</td>
-    <td style="text-align:center">${boolCell(r.agri_bio_conduite)}</td>
-    <td style="text-align:center">${textCell(r.agri_bio_type)}</td>
-    <td style="text-align:center">${boolCell(r.agri_bio_maraichage)}</td>
-    <td style="text-align:center">${boolCell(r.engmaec_surface_cible)}</td>
-    <td style="text-align:center">${boolCell(r.engmaec_elevage_mono)}</td>
-   </tr>`).join('') || '<tr><td colspan="13" style="text-align:center;color:#aaa;padding:24px">Aucune parcelle trouvée</td></tr>';
-}
-
-function filterPP() {
-  const s = document.getElementById('search-pp').value.toLowerCase();
-  const rows = s ? allRows.filter(r => [r.ilot_num, r.num_parcelle, r.code, r.precision, r.nom_culture].join(' ').toLowerCase().includes(s)) : allRows;
-  document.getElementById('stats-pp').textContent = `${rows.length} parcelle${rows.length>1?'s':''}`;
-  const boolCell = v => v === 'true' ? '<span class="bool-yes">✓ true</span>' : v === 'false' ? '<span class="bool-no">✗ false</span>' : v ? `<span style="font-family:monospace;font-size:.8rem">${v}</span>` : '<span class="bool-no">—</span>';
-  const textCell = v => v ? `<span style="font-family:monospace;font-weight:700;font-size:.82rem">${v}</span>` : '<span class="bool-no">—</span>';
-  document.getElementById('tbody-pp').innerHTML = rows.map(r => `<tr>
-    <td><b>${r.ilot_num}</b></td>
-    <td><b>${r.num_parcelle}</b></td>
-    <td><span class="code-badge">${r.code}</span></td>
-    <td>${r.precision ? `<span class="prec-badge">${r.precision}</span>` : '—'}</td>
-    <td>${r.nom_culture}</td>
-    <td style="text-align:center">${boolCell(r.reconversion_pp)}</td>
-    <td style="text-align:center">${boolCell(r.retournement_pp)}</td>
-    <td style="text-align:center">${boolCell(r.obligation_reimplantation_pp)}</td>
-    <td style="text-align:center">${boolCell(r.agri_bio_conduite)}</td>
-    <td style="text-align:center">${textCell(r.agri_bio_type)}</td>
-    <td style="text-align:center">${boolCell(r.agri_bio_maraichage)}</td>
-    <td style="text-align:center">${boolCell(r.engmaec_surface_cible)}</td>
-    <td style="text-align:center">${boolCell(r.engmaec_elevage_mono)}</td>
-   </tr>`).join('') || '<tr><td colspan="13" style="text-align:center;color:#aaa;padding:24px">Aucune parcelle trouvée</td></tr>';
-}
-
-// switchTab défini plus bas dans le bloc comparaison
-
-// ===================================================
-//  ONGLET AIDES DEMANDÉES
-// ===================================================
-const ASSUREUR_MAPPING = {
-  "AZR":"ALLIANZ - Assurances récoltes","AIS":"Abeille IARD et Santé","CRM":"CRMAPT",
-  "CMT":"Assurances du Crédit Mutuel et CIC Assurances","GAN":"GAN","GEN":"GENERALI",
-  "GLB":"Groupama Loire Bretagne","GCA":"Groupama Centre Atlantique","GCM":"Groupama Centre Manche",
-  "GGE":"Groupama Grand Est","GME":"Groupama Méditerranée","GNE":"Groupama Nord Est",
-  "GOC":"Groupama Oc","PVL":"Groupama Paris / Val de Loire","GRA":"Groupama Rhône Alpes / Auvergne",
-  "RUR":"La Rurale","ETO":"L'ETOILE","PAC":"PACIFICA","SGR":"Suisse Grêle « Partenaire AXA »","ATK":"Atekka (Vereinigte Hagel)"
-};
-function getAssureurLibelle(code) {
-  if (!code) return null;
-  const u = code.trim().toUpperCase();
-  return ASSUREUR_MAPPING[u] ? `${u} – ${ASSUREUR_MAPPING[u]}` : `${u} (libellé non trouvé)`;
-}
-function aidesFormatBoolean(value) {
-  if (value === "true") return { text: "Oui", cls: "aides-status-true" };
-  if (value === "false") return { text: "Non", cls: "aides-status-false" };
-  return { text: value || "Non renseigné", cls: "aides-status-other" };
-}
-function formatVoieEcoregime(code) {
-  const m = { "VC":"Certification (VC)","VP":"Pratiques (VP)","VE":"Environnementale (VE)","VH":"Haies (VH)" };
-  return m[code] || (code ? `Voie inconnue (${code})` : "-");
-}
-function escHtml(str) {
-  if (!str) return "";
-  return str.replace(/[&<>]/g, m => m==='&'?'&amp;':m==='<'?'&lt;':'&gt;');
-}
-
-function extractAidesFromDoc(doc) {
-  const NS2 = 'urn:x-telepac:fr.gouv.agriculture.telepac:echange-producteur';
-  const getText = (el, tag) => { const e = el.getElementsByTagNameNS(NS2,tag)[0]; return e ? e.textContent.trim() : ""; };
-  const result = {};
-  const producteur = doc.getElementsByTagNameNS(NS2,"producteur")[0];
-  result.pacage = producteur ? producteur.getAttribute("numero-pacage") : "";
-  result.campagne = producteur ? producteur.getAttribute("campagne") : "";
-  const demandeur = doc.getElementsByTagNameNS(NS2,"demandeur")[0];
-  if (demandeur) {
-    const identIndiv = demandeur.getElementsByTagNameNS(NS2,"identification-individuelle")[0];
-    if (identIndiv) { const identite = identIndiv.getElementsByTagNameNS(NS2,"identite")[0]; if (identite) { result.nom = getText(identite,"nom"); result.prenom = getText(identite,"prenoms"); } }
-    const identSoc = demandeur.getElementsByTagNameNS(NS2,"identification-societe")[0];
-    if (identSoc) { const n = getText(identSoc,"exploitation") || getText(identSoc,"raison-sociale"); if(n){result.nom=n; delete result.prenom;} }
-    result.siret = getText(demandeur,"siret");
-    result.email = getText(demandeur,"courriel");
-  }
-  const p1 = doc.getElementsByTagNameNS(NS2,"demandes-aides-pilier1-et-AR")[0];
-  if (p1) {
-    ["aide-jeunes-agriculteurs","ble-dur","prunes-transformation","cerises-transformation","peches-transformation","poires-transformation","tomates-industrie","pommes-terre-feculieres","chanvre","houblon","semences-graminees","riz","maraichage"].forEach(a=>{const v=p1.getAttribute(a);if(v!==null)result[a]=v;});
-    const dec = p1.getElementsByTagNameNS(NS2,"demande-aides-decouplees")[0];
-    if (dec) result["aides-decouplees"] = dec.getAttribute("aides-decouplees")||"false";
-    const eco = p1.getElementsByTagNameNS(NS2,"demande-aide-ecoregime")[0];
-    if (eco) { result["eco-regime"]=eco.getAttribute("aide-ecoregime")||"false"; if(result["eco-regime"]==="true"){result["voie-ecoregime"]=eco.getAttribute("voie-ecoregime")||"";result["certification"]=eco.getAttribute("certification")||"";result["bonus-haie"]=eco.getAttribute("bonus-haie")||"false";} }
-    const legF = p1.getElementsByTagNameNS(NS2,"demande-legumineuses-fourrageres")[0];
-    if (legF) { result["legumineuse-fourragere"]=legF.getAttribute("legumineuse-fourragere")||"false"; if(result["legumineuse-fourragere"]==="true"){result["demandeur-eleveur"]=legF.getAttribute("demandeur-eleveur")||"false";result["numero-pacage-eleveur"]=legF.getAttribute("numero-pacage-eleveur")||"";} }
-    const legG = p1.getElementsByTagNameNS(NS2,"demande-legumineuses-graines")[0];
-    if (legG) result["legumineuse-graine"]=legG.getAttribute("legumineuse-graine")||"false";
-    const ass = p1.getElementsByTagNameNS(NS2,"demande-assurance-recolte")[0];
-    if (ass) { result["assurance-recolte"]=ass.getAttribute("assurance-recolte")||"false"; const assureurs=ass.getElementsByTagNameNS(NS2,"assureurs")[0]; if(assureurs){const codes=[];for(let a of assureurs.getElementsByTagNameNS(NS2,"assureur"))if(a.textContent)codes.push(a.textContent.trim());if(codes.length)result["assureurs_codes"]=codes;} }
-  }
-  const p2 = doc.getElementsByTagNameNS(NS2,"demandes-aides-pilier2")[0];
-  if (p2) { result["demande-ab"]=p2.getAttribute("demande-ab")||"false"; result["demande-maec"]=p2.getAttribute("demande-maec")||"false"; const ichn=p2.getElementsByTagNameNS(NS2,"ichn")[0]; if(ichn)result["demande-ichn"]=ichn.getAttribute("demande-ichn")||"false"; }
-  const ao = doc.getElementsByTagNameNS(NS2,"autres-obligations")[0];
-  if (ao) { ["periode-bcae6","autorisation-transmission-donnees","choix-bcae7","interlocuteur-agree-ISN","autorisation-transmission-donnees-interlocuteur-ISN","transmission-donnees-fins-commerciales","renonciation-ISN"].forEach(a=>{const v=ao.getAttribute(a);if(v!==null)result[a]=v;}); }
-  const effectifsDeclares = {};
-  const eff = doc.getElementsByTagNameNS(NS2,"effectifs-animaux")[0];
-  if (eff) { for(let ef of eff.getElementsByTagNameNS(NS2,"effectif-animal")){const pres=ef.getElementsByTagNameNS(NS2,"effectif-present-ou-transhumant")[0];if(pres){const type=getText(pres,"type-animal-1");const nb=getText(pres,"nb-animaux-1");if(type&&nb!=="")effectifsDeclares[type]=parseInt(nb,10);}} }
-  result.effectifsDeclares = effectifsDeclares;
-  return result;
-}
-
-function renderAides() {
-  const area = document.getElementById('aides-result-area');
-  if (!lastXmlDoc) {
-    area.innerHTML = `<div style="text-align:center;padding:40px;color:#888;background:white;border-radius:16px;border:1px solid #deecda"><div style="font-size:2rem;margin-bottom:8px">📂</div><div>Chargez d'abord un fichier XML.</div></div>`;
-    return;
-  }
-  const data = extractAidesFromDoc(lastXmlDoc);
-  const nomComplet = data.nom ? data.nom + (data.prenom ? " " + data.prenom : "") : "-";
-
-  let html = `<div class="aides-info-panel"><h3>📋 Identité du demandeur</h3><div class="aides-info-grid">
-    <div class="aides-info-item"><div class="aides-info-label">PACAGE</div><div class="aides-info-value">${escHtml(data.pacage||"-")}</div></div>
-    <div class="aides-info-item"><div class="aides-info-label">Campagne</div><div class="aides-info-value">${escHtml(data.campagne||"-")}</div></div>
-    <div class="aides-info-item"><div class="aides-info-label">Nom / Raison sociale</div><div class="aides-info-value">${escHtml(nomComplet)}</div></div>
-    <div class="aides-info-item"><div class="aides-info-label">SIRET</div><div class="aides-info-value">${escHtml(data.siret||"-")}</div></div>
-    <div class="aides-info-item"><div class="aides-info-label">Email</div><div class="aides-info-value">${escHtml(data.email||"-")}</div></div>
-  </div></div>`;
-
-  function card(name, value, detail="") { const v=aidesFormatBoolean(value); return `<div class="aides-card"><div class="aides-card-header"><span class="aides-card-name">${name}</span><span class="aides-status ${v.cls}">${v.text}</span></div>${detail?`<div class="aides-card-detail">${detail}</div>`:""}</div>`; }
-
-  // Pilier 1 découplées
-  let s1 = "";
-  if (data["aides-decouplees"]!==undefined) s1 += card("Aides découplées", data["aides-decouplees"]);
-  if (data["eco-regime"]!==undefined) {
-    let det = data["eco-regime"]==="true" ? `<div>Voie : ${escHtml(formatVoieEcoregime(data["voie-ecoregime"]))}</div><div>Certification : ${escHtml(data["certification"]||"-")}</div><div>Bonus Haie : ${aidesFormatBoolean(data["bonus-haie"]).text}</div>` : "";
-    s1 += card("Éco-régime", data["eco-regime"], det);
-  }
-  if (data["aide-jeunes-agriculteurs"]!==undefined) s1 += card("👨‍🌾 Jeunes Agriculteurs (JA)", data["aide-jeunes-agriculteurs"]);
-  if (s1) html += `<div class="aides-section"><h2>🟢 PILIER 1 – Aides découplées, éco-régime et aide JA</h2>${s1}</div>`;
-
-  // Pilier 1 couplées
-  const coupledLabels = {"ble-dur":"Blé dur","prunes-transformation":"Prunes (transformation)","cerises-transformation":"Cerises (transformation)","peches-transformation":"Pêches (transformation)","poires-transformation":"Poires (transformation)","tomates-industrie":"Tomates industrie","pommes-terre-feculieres":"Pommes de terre féculières","chanvre":"Chanvre","houblon":"Houblon","semences-graminees":"Semences graminées","riz":"Riz","maraichage":"Maraîchage","legumineuse-fourragere":"🌿 Légumineuses fourragères","legumineuse-graine":"🫘 Légumineuses à graines"};
-  let s2 = "";
-  const coupledOrder = ["legumineuse-fourragere","legumineuse-graine","ble-dur","prunes-transformation","cerises-transformation","peches-transformation","poires-transformation","tomates-industrie","pommes-terre-feculieres","chanvre","houblon","semences-graminees","riz","maraichage"];
-  for (const key of coupledOrder) {
-    if (data[key]===undefined) continue;
-    if (key==="legumineuse-fourragere" && data[key]==="true") {
-      s2 += card(coupledLabels[key], data[key], `<div>Demandeur éleveur : ${aidesFormatBoolean(data["demandeur-eleveur"]).text}</div><div>PACAGE éleveur : ${escHtml(data["numero-pacage-eleveur"]||"-")}</div>`);
-    } else { s2 += card(coupledLabels[key]||key, data[key]); }
-  }
-  if (s2) html += `<div class="aides-section"><h2>🌾 PILIER 1 – Aides couplées végétales</h2>${s2}</div>`;
-
-  // Assurance récolte
-  if (data["assurance-recolte"]!==undefined) {
-    let det = "";
-    if (data["assureurs_codes"]?.length) { det = `<div>Assureur(s) :</div><div class="assureur-list">${data["assureurs_codes"].map(c=>`<span class="assureur-badge">${escHtml(getAssureurLibelle(c)||c)}</span>`).join('')}</div>`; }
-    html += `<div class="aides-section"><h2>📋 Assurance récolte</h2>${card("Assurance récolte", data["assurance-recolte"], det)}</div>`;
-  }
-
-  // Pilier 2
-  let s4 = "";
-  const p2Labels = {"demande-ab":"Agriculture Biologique (AB)","demande-maec":"Mesures agro-environnementales (MAEC)","demande-ichn":"Indemnité compensatoire de handicaps naturels (ICHN)"};
-  for (const key of ["demande-ab","demande-maec","demande-ichn"]) { if(data[key]!==undefined) s4 += card(p2Labels[key], data[key]); }
-  if (s4) html += `<div class="aides-section"><h2>🚜 PILIER 2 – Développement rural</h2>${s4}</div>`;
-
-  // Obligations
-  let s5 = "";
-  const obligLabels = {"periode-bcae6":"Période BCAE6","autorisation-transmission-donnees":"Autorisation transmission données CartoBio","choix-bcae7":"Choix BCAE7","interlocuteur-agree-ISN":"Interlocuteur agréé ISN","autorisation-transmission-donnees-interlocuteur-ISN":"Transmission données ISN","transmission-donnees-fins-commerciales":"Transmission données fins commerciales","renonciation-ISN":"Renonciation ISN"};
-  for (const key of Object.keys(obligLabels)) {
-    if (data[key]===undefined) continue;
-    if (key==="interlocuteur-agree-ISN") { s5 += `<div class="aides-card"><div class="aides-card-header"><span class="aides-card-name">${obligLabels[key]}</span><span class="aides-status aides-status-other">${escHtml(getAssureurLibelle(data[key])||data[key])}</span></div></div>`; }
-    else { let det = key==="choix-bcae7"&&data[key]!=="true"&&data[key]!=="false"?`<div>Valeur : ${escHtml(data[key])}</div>`:""; s5 += card(obligLabels[key], data[key], det); }
-  }
-  if (s5) html += `<div class="aides-section"><h2>📋 Obligations & Engagements</h2>${s5}</div>`;
-
-  // Effectifs animaux
-  const animaux = [["OV","Ovins"],["CA","Caprins"],["EQ","Équins"],["AL","Alpaga"],["LA","Lama"],["CE","Cerf et Biche"],["DA","Daim et Daine"],["TR","Truies"],["AP","Autres porcins"],["PP","Poules pondeuses"],["AV","Autres volailles"]];
-  let s6 = "";
-  for (const [code,label] of animaux) {
-    const nb = data.effectifsDeclares?.[code] ?? 0;
-    s6 += `<div class="aides-card"><div class="aides-card-header"><span class="aides-card-name">Effectif ${label}</span><span class="aides-status aides-status-other">${nb}</span></div></div>`;
-  }
-  if (s6) html += `<div class="aides-section"><h2>🐄 Animaux présents (y compris zéro)</h2>${s6}</div>`;
-
-  area.innerHTML = html;
-}
-
-document.getElementById('file-input').addEventListener('change',e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
-const dz=document.getElementById('drop-zone');
-dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
-dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
-dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
-
-// ===================================================
-//  ONGLET COMPARAISON 2025 / 2026
-// ===================================================
-let lastXmlDoc2025 = null;
-
-// Override switchTab to include comparaison
-function switchTab(t) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.getAttribute('onclick').includes("'" + t + "'")));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + t));
-  if (t === 'ecoregime') renderEcoregime();
-  if (t === 'ilots') renderIlots();
-  if (t === 'aides') renderAides();
-  if (t === 'balises') renderBalises();
-  if (t === 'pp') renderPP();
-  if (t === 'comparaison') renderComparaison();
-}
-
-document.getElementById('cmp-file-input').addEventListener('change', function(e) {
-  if (e.target.files[0]) handleCmpFile(e.target.files[0]);
-});
-var cmpDz = document.getElementById('cmp-drop-zone');
-cmpDz.addEventListener('dragover', function(e) { e.preventDefault(); cmpDz.classList.add('drag-over'); });
-cmpDz.addEventListener('dragleave', function() { cmpDz.classList.remove('drag-over'); });
-cmpDz.addEventListener('drop', function(e) {
-  e.preventDefault(); cmpDz.classList.remove('drag-over');
-  if (e.dataTransfer.files[0]) handleCmpFile(e.dataTransfer.files[0]);
-});
-
-function handleCmpFile(file) {
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    var xml = ev.target.result;
-    var doc = new DOMParser().parseFromString(xml, 'application/xml');
-    var parseErr = doc.querySelector('parsererror');
-    if (parseErr) { alert('Erreur : fichier XML invalide.'); return; }
-    lastXmlDoc2025 = doc;
-    var data = extractAidesFromDoc(doc);
-    var nom = data.nom ? data.nom + (data.prenom ? ' ' + data.prenom : '') : '-';
-    var bar = document.getElementById('cmp-loaded-bar');
-    bar.style.display = 'flex';
-    bar.innerHTML = '<div class="cmp-loaded-info">' +
-      '<span class="cmp-tag">2025 chargé ✓</span>' +
-      '<span><strong>PACAGE :</strong> ' + escHtml(data.pacage || '-') + '</span>' +
-      '<span><strong>Campagne :</strong> ' + escHtml(data.campagne || '-') + '</span>' +
-      '<span><strong>Nom :</strong> ' + escHtml(nom) + '</span>' +
-      '<button class="btn-cmp-reset" onclick="resetCmp()">✕ Retirer</button>' +
-    '</div>';
-    document.getElementById('cmp-upload-area').style.display = 'none';
-    renderComparaison();
-  };
-  reader.readAsText(file);
-}
-
-function resetCmp() {
-  lastXmlDoc2025 = null;
-  document.getElementById('cmp-loaded-bar').style.display = 'none';
-  document.getElementById('cmp-upload-area').style.display = 'block';
-  document.getElementById('cmp-result-area').innerHTML = '<div class="cmp-placeholder"><div class="icon">🔍</div><div>Chargez un fichier XML 2025 pour afficher la comparaison</div></div>';
-  document.getElementById('cmp-file-input').value = '';
-}
-
-function renderComparaison() {
-  var area = document.getElementById('cmp-result-area');
-  if (!lastXmlDoc2025 || !lastXmlDoc) {
-    area.innerHTML = '<div class="cmp-placeholder"><div class="icon">🔍</div><div>Chargez un fichier XML 2025 pour afficher la comparaison</div></div>';
-    return;
-  }
-  var d26 = extractAidesFromDoc(lastXmlDoc);
-  var d25 = extractAidesFromDoc(lastXmlDoc2025);
-
-  // Vérification cohérence PACAGE
-  var warnHtml = '';
-  if (d26.pacage && d25.pacage && d26.pacage !== d25.pacage) {
-    warnHtml = '<div class="cmp-diff-banner" style="background:#ffe8e8;border-color:#f0a0a0;color:#800;">' +
-      '⚠️ <strong>Attention : numéros PACAGE différents !</strong><br>' +
-      'Fichier 2026 : <strong>' + escHtml(d26.pacage) + '</strong> — Fichier 2025 : <strong>' + escHtml(d25.pacage) + '</strong><br>' +
-      '<small>Assurez-vous d\'avoir chargé les fichiers du même exploitant.</small></div>';
-  }
-
-  var allKeys = [];
-  var skipKeys = ['pacage','campagne','nom','prenom','siret','email','effectifsDeclares','assureurs_codes','numero-pacage-eleveur'];
-  var seen = {};
-  [Object.keys(d26), Object.keys(d25)].forEach(function(ks) {
-    ks.forEach(function(k) { if (!seen[k] && skipKeys.indexOf(k) === -1) { seen[k] = true; allKeys.push(k); } });
-  });
-  var diffs = allKeys.filter(function(k) { return d26[k] !== d25[k]; });
-
-  var animalKeys = ['OV','CA','EQ','AL','LA','CE','DA','TR','AP','PP','AV'];
-  var animalDiffs = animalKeys.filter(function(k) {
-    return (d26.effectifsDeclares && d26.effectifsDeclares[k] || 0) !== (d25.effectifsDeclares && d25.effectifsDeclares[k] || 0);
-  });
-
-  var diffBanner = '';
-  if (diffs.length === 0 && animalDiffs.length === 0) {
-    diffBanner = '<div class="cmp-diff-banner" style="background:#eaffea;border-color:#60c060;color:#1a6a1a;"><strong>✅ Aucune différence détectée sur les aides demandées</strong><br>Les demandes d\'aides sont identiques entre 2025 et 2026.</div>';
-  } else {
-    var diffLabelMap = {
-      'aides-decouplees':'Aides découplées','eco-regime':'Éco-régime','voie-ecoregime':'Voie éco-régime',
-      'certification':'Certification','bonus-haie':'Bonus Haie','aide-jeunes-agriculteurs':'Aide JA',
-      'legumineuse-fourragere':'Légumineuses fourragères','legumineuse-graine':'Légumineuses à graines',
-      'demandeur-eleveur':'Demandeur éleveur','assurance-recolte':'Assurance récolte',
-      'demande-ab':'Agriculture Biologique','demande-maec':'MAEC','demande-ichn':'ICHN',
-      'periode-bcae6':'Période BCAE6','choix-bcae7':'Choix BCAE7',
-      'autorisation-transmission-donnees':'Transmission CartoBio',
-      'periode-bcae6':'Période BCAE6','choix-bcae7':'Choix BCAE7',
-      'interlocuteur-agree-ISN':'Interlocuteur agréé ISN',
-      'autorisation-transmission-donnees-interlocuteur-ISN':'Transmission données ISN',
-      'transmission-donnees-fins-commerciales':'Transmission fins commerciales',
-      'renonciation-ISN':'Renonciation ISN',
-      'ble-dur':'Blé dur','chanvre':'Chanvre','houblon':'Houblon','maraichage':'Maraîchage',
-      'tomates-industrie':'Tomates industrie','riz':'Riz','semences-graminees':'Semences graminées',
-      'pommes-terre-feculieres':'Pommes de terre féculières',
-    };
-    var diffItems = diffs.map(function(k) { return diffLabelMap[k] || k; })
-      .concat(animalDiffs.map(function(k) { return 'Effectif ' + k; }));
-    diffBanner = '<div class="cmp-diff-banner"><strong>⚠️ ' + diffItems.length + ' différence(s) détectée(s)</strong><br>' +
-      diffItems.map(function(x) { return '<span class="diff-dot"></span>' + escHtml(x) + '<br>'; }).join('') + '</div>';
-  }
-
-  var nom26 = d26.nom ? d26.nom + (d26.prenom ? ' ' + d26.prenom : '') : '-';
-  var nom25 = d25.nom ? d25.nom + (d25.prenom ? ' ' + d25.prenom : '') : '-';
-  var idPanel = '<div class="cmp-id-panel"><h3>👤 Identité du demandeur</h3><div class="cmp-id-row">' +
-    '<div class="cmp-id-item"><div class="cmp-id-label">PACAGE</div><div class="cmp-id-val">' +
-      '<span class="yr yr-2026">2026</span>' + escHtml(d26.pacage||'-') + ' &nbsp; <span class="yr yr-2025">2025</span>' + escHtml(d25.pacage||'-') + '</div></div>' +
-    '<div class="cmp-id-item"><div class="cmp-id-label">Nom / Raison sociale</div><div class="cmp-id-val">' +
-      '<span class="yr yr-2026">2026</span>' + escHtml(nom26) + '<br><span class="yr yr-2025">2025</span>' + escHtml(nom25) + '</div></div>' +
-    '<div class="cmp-id-item"><div class="cmp-id-label">SIRET</div><div class="cmp-id-val">' +
-      '<span class="yr yr-2026">2026</span>' + escHtml(d26.siret||'-') + ' &nbsp; <span class="yr yr-2025">2025</span>' + escHtml(d25.siret||'-') + '</div></div>' +
-    '</div></div>';
-
-  // ---- Helpers tableau unique ----
-  function fmtVal(val, isDiff) {
-    if (val === undefined || val === null) return '<span class="cmp-item-val cmp-val-missing">—</span>';
-    var v = aidesFormatBoolean(val);
-    var cls = v.cls.replace('aides-status-', 'cmp-val-');
-    return '<span class="cmp-item-val ' + cls + '">' + v.text + '</span>';
-  }
-
-  function fmtAssureur(d) {
-    if (d['assurance-recolte'] !== 'true') return fmtVal(d['assurance-recolte'], false);
-    var codes = d['assureurs_codes'] || [];
-    var noms = codes.map(function(c){ return getAssureurLibelle(c) || c; });
-    return '<span class="cmp-item-val cmp-val-yes">Oui</span>' +
-      (noms.length ? '<span class="cmp-assureur">' + escHtml(noms.join(', ')) + '</span>' : '');
-  }
-
-  function sectionRow(label) {
-    return '<tr class="cmp-section-row"><td colspan="3">' + label + '</td></tr>';
-  }
-
-  function dataRow(label, v26, v25, isDiff, extra26, extra25) {
-    var marker = isDiff ? '<span class="diff-marker"></span>' : '';
-    var td26 = extra26 !== undefined ? extra26 : fmtVal(v26, isDiff);
-    var td25 = extra25 !== undefined ? extra25 : fmtVal(v25, isDiff);
-    return '<tr class="' + (isDiff ? 'diff-row' : '') + '">' +
-      '<td class="td-label">' + marker + escHtml(label) + '</td>' +
-      '<td class="td-val">' + td26 + '</td>' +
-      '<td class="td-val">' + td25 + '</td>' +
-      '</tr>';
-  }
-
-  function animRow(label, code, isDiff) {
-    var v26 = d26.effectifsDeclares && d26.effectifsDeclares[code] !== undefined ? d26.effectifsDeclares[code] : 0;
-    var v25 = d25.effectifsDeclares && d25.effectifsDeclares[code] !== undefined ? d25.effectifsDeclares[code] : 0;
-    var marker = isDiff ? '<span class="diff-marker"></span>' : '';
-    return '<tr class="' + (isDiff ? 'diff-row' : '') + '">' +
-      '<td class="td-label">' + marker + escHtml(label) + '</td>' +
-      '<td class="td-val"><span class="cmp-item-val cmp-val-other">' + v26 + '</span></td>' +
-      '<td class="td-val"><span class="cmp-item-val cmp-val-other">' + v25 + '</span></td>' +
-      '</tr>';
-  }
-
-  // ---- Construction du tableau unique ----
-  var keysP1 = [
-    ['Aides découplées','aides-decouplees'],
-    ['Éco-régime','eco-regime'],
-    ['Voie éco-régime','voie-ecoregime'],
-    ['Certification','certification'],
-    ['Bonus Haie','bonus-haie'],
-    ['Aide Jeunes Agriculteurs','aide-jeunes-agriculteurs'],
-  ];
-  var keysP1c = [
-    ['Légumineuses fourragères','legumineuse-fourragere'],
-    ['Légumineuses à graines','legumineuse-graine'],
-    ['Blé dur','ble-dur'],
-    ['Tomates industrie','tomates-industrie'],
-    ['Pommes de terre féculières','pommes-terre-feculieres'],
-    ['Chanvre','chanvre'],['Houblon','houblon'],
-    ['Semences graminées','semences-graminees'],['Riz','riz'],['Maraîchage','maraichage'],
-    ['Prunes (transformation)','prunes-transformation'],
-    ['Cerises (transformation)','cerises-transformation'],
-    ['Pêches (transformation)','peches-transformation'],
-    ['Poires (transformation)','poires-transformation'],
-  ];
-  var keysP2 = [
-    ['Agriculture Biologique','demande-ab'],
-    ['MAEC','demande-maec'],
-    ['ICHN','demande-ichn'],
-  ];
-  var keysOblig = [
-    ['Période BCAE6','periode-bcae6'],
-    ['Autorisation transmission CartoBio','autorisation-transmission-donnees'],
-    ['Choix BCAE7','choix-bcae7'],
-    ['Interlocuteur agréé ISN','interlocuteur-agree-ISN'],
-    ['Transmission données ISN','autorisation-transmission-donnees-interlocuteur-ISN'],
-    ['Transmission données fins commerciales','transmission-donnees-fins-commerciales'],
-    ['Renonciation ISN','renonciation-ISN'],
-  ];
-  var animalKeys2 = ['OV','CA','EQ','AL','LA','CE','DA','TR','AP','PP','AV'];
-  var animalLabels = {OV:'Ovins',CA:'Caprins',EQ:'Équins',AL:'Alpaga',LA:'Lama',CE:'Cerf et Biche',DA:'Daim et Daine',TR:'Truies',AP:'Autres porcins',PP:'Poules pondeuses',AV:'Autres volailles'};
-
-  var rows = '';
-
-  // Section Pilier 1 découplées
-  var hasP1 = keysP1.some(function(p){ return d26[p[1]]!==undefined || d25[p[1]]!==undefined; });
-  if (hasP1) {
-    rows += sectionRow('🟢 PILIER 1 — Aides découplées & éco-régime');
-    keysP1.forEach(function(pair) {
-      if (d26[pair[1]]===undefined && d25[pair[1]]===undefined) return;
-      rows += dataRow(pair[0], d26[pair[1]], d25[pair[1]], diffs.indexOf(pair[1])!==-1);
-    });
-  }
-
-  // Section Pilier 1 couplées
-  var keysP1cF = keysP1c.filter(function(p){ return d26[p[1]]!==undefined || d25[p[1]]!==undefined; });
-  if (keysP1cF.length) {
-    rows += sectionRow('🌾 PILIER 1 — Aides couplées végétales');
-    keysP1cF.forEach(function(pair) {
-      rows += dataRow(pair[0], d26[pair[1]], d25[pair[1]], diffs.indexOf(pair[1])!==-1);
-    });
-  }
-
-  // Section Assurance récolte
-  var hasAss = d26['assurance-recolte']!==undefined || d25['assurance-recolte']!==undefined;
-  if (hasAss) {
-    rows += sectionRow('📋 Assurance récolte');
-    var assIsDiff = diffs.indexOf('assurance-recolte') !== -1;
-    rows += dataRow('Assurance récolte', d26['assurance-recolte'], d25['assurance-recolte'], assIsDiff,
-      fmtAssureur(d26), fmtAssureur(d25));
-  }
-
-  // Section Pilier 2
-  rows += sectionRow('🚜 PILIER 2 — Développement rural');
-  keysP2.forEach(function(pair) {
-    rows += dataRow(pair[0], d26[pair[1]], d25[pair[1]], diffs.indexOf(pair[1])!==-1);
-  });
-
-  // Section Obligations
-  var obligF = keysOblig.filter(function(p){ return d26[p[1]]!==undefined || d25[p[1]]!==undefined; });
-  if (obligF.length) {
-    rows += sectionRow('📋 Obligations & Engagements');
-    obligF.forEach(function(pair) {
-      rows += dataRow(pair[0], d26[pair[1]], d25[pair[1]], diffs.indexOf(pair[1])!==-1);
-    });
-  }
-
-  // Section Effectifs animaux
-  rows += sectionRow('🐄 Effectifs animaux');
-  animalKeys2.forEach(function(code) {
-    var v26a = d26.effectifsDeclares && d26.effectifsDeclares[code] || 0;
-    var v25a = d25.effectifsDeclares && d25.effectifsDeclares[code] || 0;
-    rows += animRow(animalLabels[code]||code, code, animalDiffs.indexOf(code)!==-1);
-  });
-
-  var tableHtml = '<div class="cmp-table-wrap"><table class="cmp-table">' +
-    '<thead><tr>' +
-    '<th class="th-label">Aide / Engagement</th>' +
-    '<th class="th-2026">🌿 2026 (PACAGE ' + escHtml(d26.pacage||'?') + ')</th>' +
-    '<th class="th-2025">📋 2025 (PACAGE ' + escHtml(d25.pacage||'?') + ')</th>' +
-    '</tr></thead>' +
-    '<tbody>' + rows + '</tbody>' +
-    '</table></div>';
-
-  area.innerHTML = warnHtml + diffBanner + idPanel + tableHtml;
-}
-
-</script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
