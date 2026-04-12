@@ -25,12 +25,37 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo) {
 
   currentMap = L.map('map').setView([46.5, 2.5], 6);
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  // Définition des fonds de carte
+  var cartoDB = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> & CartoDB',
     subdomains: 'abcd',
     maxZoom: 19,
     minZoom: 6
-  }).addTo(currentMap);
+  });
+
+  var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    attribution: '© Google'
+  });
+
+  var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    attribution: '© Google'
+  });
+
+  var baseMaps = {
+    "🗺️ Carte classique": cartoDB,
+    "🛰️ Satellite": googleSat,
+    "🛰️ Hybride": googleHybrid
+  };
+
+  // Ajout du fond par défaut
+  cartoDB.addTo(currentMap);
+  
+  // Ajout du contrôle de couches
+  L.control.layers(baseMaps).addTo(currentMap);
 
   currentIlotGroup   = L.layerGroup().addTo(currentMap);
   currentParcelGroup = L.layerGroup().addTo(currentMap);
@@ -139,7 +164,6 @@ function _toLatLng(ll) {
 function _fitBounds(allLatLngs, parcelsGeo) {
   const valid = allLatLngs.filter(Boolean);
   if (valid.length === 0) {
-    // Fallback sur le premier point d'une parcelle
     const first = parcelsGeo[0]?.geom?.[0];
     if (first) {
       const c = _toLatLng(first);
