@@ -345,3 +345,9 @@ export function getCultureColor(code) {
   nextColorIdx++;
   return cultureColorCache.get(code);
 }
+
+// Réinitialise le cache couleurs entre deux chargements de fichier
+export function resetColorCache() {
+  cultureColorCache.clear();
+  nextColorIdx = 0;
+}
