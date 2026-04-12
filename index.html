@@ -8,6 +8,8 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="comparaison_style.css">
+
 </head>
 <body>
 
@@ -46,7 +48,8 @@
     <button class="tab-btn" data-tab="ecoregime">🌱 Écorégime</button>
     <button class="tab-btn" data-tab="maec">📝 Engagements MAEC</button>
     <button class="tab-btn" data-tab="balises">🔍 Détail parcelles</button>
-    <button class="tab-btn" data-tab="pp">🌿 PP / Bio / MAEC</button>    
+    <button class="tab-btn" data-tab="pp">🌿 PP / Bio / MAEC</button>
+    <button class="tab-btn" data-tab="comparaison">🔄 Comparaison N-1 / N</button>    
   </div>
 
   <!-- Onglet Parcelles -->
@@ -164,6 +167,12 @@
       <div class="map-legend"><strong>🎨 Légende</strong><div id="map-legend-items" class="legend-items">Chargement…</div></div>
     </div>
   </div>
+
+  <!-- Onglet Comparaison N-1 / N -->
+    <div id="tab-comparaison" class="tab-content">
+      <div <div id="comp-result-area" style="padding:4px 0"></div>
+    </div>
+
 
   <!-- Onglet SNA -->
   <div id="tab-sna" class="tab-content">

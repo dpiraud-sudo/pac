@@ -12,39 +12,39 @@ import { renderAides } from './aides.js';
 import { initMap, invalidateMapSize, resetMap } from './carto.js';
 import { setIlotsData, renderIlots } from './ilots.js';
 import { setSNAdata, renderSNA, filterSNA, sortSNA } from './sna.js';
+import { setDocN, renderComparaison, resetComparaison } from './comparaison.js';
 
 // ===================================================
 // VARIABLES GLOBALES
 // ===================================================
-let allRows = [];
+let allRows    = [];
 let allMaecRows = [];
 let lastXmlDoc = null;
-let ilotsGeo = [];
-let parcelsGeo = [];
-let maecGeo = { surfaciques: [], lineaires: [], ponctuelles: [] };
-let snaList = [];
+let ilotsGeo   = [];
+let parcelsGeo  = [];
+let maecGeo     = { surfaciques: [], lineaires: [], ponctuelles: [] };
+let snaList     = [];
 let isProcessing = false;
 
 // ===================================================
 // RENDU GLOBAL
 // ===================================================
 function renderApp(data) {
-  allRows = data.rows;
+  allRows     = data.rows;
   allMaecRows = data.maecRows || [];
-  ilotsGeo = data.ilotsGeo;
-  parcelsGeo = data.parcelsGeo;
-  maecGeo = data.maecGeo;
-  lastXmlDoc = data.xmlDoc;
-  snaList = data.snaList || [];
+  ilotsGeo    = data.ilotsGeo;
+  parcelsGeo  = data.parcelsGeo;
+  maecGeo     = data.maecGeo;
+  lastXmlDoc  = data.xmlDoc;
+  snaList     = data.snaList || [];
 
-  // Mettre à jour les données dans les modules
   setData(allRows);
   setEcoData(allRows);
   setMaecData(allMaecRows);
   setIlotsData(allRows);
   setSNAdata(snaList);
+  setDocN(lastXmlDoc);
 
-  // En-tête
   const pacageInfo = document.getElementById('pacage-info');
   if (pacageInfo) {
     pacageInfo.innerHTML = [
@@ -55,7 +55,6 @@ function renderApp(data) {
     ].filter(Boolean).join('  |  ');
   }
 
-  // Filtre codes culture
   const codes = [...new Set(allRows.map(r => r.code))].sort();
   const codeSelect = document.getElementById('filter-code');
   if (codeSelect) {
@@ -63,7 +62,6 @@ function renderApp(data) {
       codes.map(c => `<option value="${c}">${c} — ${lookup(c, '').nom}</option>`).join('');
   }
 
-  // Rendu de tous les onglets
   renderParcelles();
   renderSynthese();
   renderEcoregime();
@@ -72,6 +70,7 @@ function renderApp(data) {
   renderBalises();
   renderPP();
   renderAides(lastXmlDoc);
+  renderComparaison();
   renderSNA();
   initMap(ilotsGeo, parcelsGeo, maecGeo);
 }
@@ -89,22 +88,18 @@ function handleFile(file) {
 
   isProcessing = true;
   const loading = document.getElementById('loading');
-
   const setLoadingText = (txt) => {
     const el = loading?.querySelector('div:last-child');
     if (el) el.textContent = txt;
   };
 
-  if (loading) {
-    loading.classList.add('show');
-    setLoadingText('📄 Lecture du fichier XML...');
-  }
+  if (loading) { loading.classList.add('show'); setLoadingText('📄 Lecture du fichier XML…'); }
 
   const reader = new FileReader();
 
   reader.onload = (e) => {
     try {
-      setLoadingText('🔍 Analyse des données...');
+      setLoadingText('🔍 Analyse des données…');
       const data = parseXML(e.target.result);
 
       if (!data.rows.length) {
@@ -114,10 +109,9 @@ function handleFile(file) {
 
       document.getElementById('upload-screen').style.display = 'none';
       document.getElementById('app-screen').style.display = 'block';
-
       renderApp(data);
     } catch (err) {
-      console.error('Erreur de parsing:', err);
+      console.error('Erreur de parsing :', err);
       alert('Erreur lors du parsing : ' + err.message);
     } finally {
       if (loading) loading.classList.remove('show');
@@ -140,7 +134,7 @@ function resetFileInput() {
 }
 
 // ===================================================
-// RESET COMPLET DE L'APPLICATION
+// RESET COMPLET
 // ===================================================
 function resetApp() {
   isProcessing = false;
@@ -150,22 +144,18 @@ function resetApp() {
 
   resetFileInput();
 
-  // Réinitialiser les variables locales
-  allRows = [];
+  allRows     = [];
   allMaecRows = [];
-  ilotsGeo = [];
-  parcelsGeo = [];
-  maecGeo = { surfaciques: [], lineaires: [], ponctuelles: [] };
-  snaList = [];
-  lastXmlDoc = null;
+  ilotsGeo    = [];
+  parcelsGeo  = [];
+  maecGeo     = { surfaciques: [], lineaires: [], ponctuelles: [] };
+  snaList     = [];
+  lastXmlDoc  = null;
 
-  // Réinitialiser le cache couleurs cultures pour le prochain fichier
   resetColorCache();
-
-  // Détruire la carte Leaflet proprement (via carto.js)
   resetMap();
+  resetComparaison();
 
-  // Revenir à l'onglet Aides par défaut
   switchTab('aides');
 }
 
@@ -179,24 +169,21 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(content => {
     content.classList.toggle('active', content.id === `tab-${tabId}`);
   });
-  if (tabId === 'carte') {
-    setTimeout(() => invalidateMapSize(), 100);
-  }
+  if (tabId === 'carte') setTimeout(() => invalidateMapSize(), 100);
 }
 
 // ===================================================
-// EXPOSITION DES FONCTIONS GLOBALES
-// (nécessaire pour les handlers inline dans le HTML)
+// EXPOSITION GLOBALE
 // ===================================================
 window.filterParcelles = filterParcelles;
-window.filterBalises = filterBalises;
-window.filterPP = filterPP;
-window.sortTable = sortTable;
-window.switchTab = switchTab;
-window.resetApp = resetApp;
-window.filterSNA = filterSNA;
-window.sortSNA = sortSNA;
-window.toggleEcoGroup = window.toggleEcoGroup; // défini dans ecoregime.js
+window.filterBalises   = filterBalises;
+window.filterPP        = filterPP;
+window.sortTable       = sortTable;
+window.switchTab       = switchTab;
+window.resetApp        = resetApp;
+window.filterSNA       = filterSNA;
+window.sortSNA         = sortSNA;
+window.toggleEcoGroup  = window.toggleEcoGroup;
 
 // ===================================================
 // INITIALISATION — UN SEUL DOMContentLoaded
@@ -207,55 +194,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadBtn = document.getElementById('upload-btn');
   const resetBtn  = document.getElementById('reset-btn');
 
-  // Bouton "Choisir un fichier"
   if (uploadBtn) {
     uploadBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      resetFileInput();
-      fileInput.click();
+      e.preventDefault(); e.stopPropagation();
+      resetFileInput(); fileInput.click();
     });
   }
 
-  // Zone de drop
   if (dropZone) {
     dropZone.addEventListener('click', (e) => {
       if (uploadBtn?.contains(e.target)) return;
-      resetFileInput();
-      fileInput.click();
+      resetFileInput(); fileInput.click();
     });
-
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('drag-over');
-    });
-
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
     dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      const file = e.dataTransfer.files[0];
-      if (file) { resetFileInput(); handleFile(file); }
+      e.preventDefault(); dropZone.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) { resetFileInput(); handleFile(f); }
     });
   }
 
-  // Input file
   if (fileInput) {
     fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) setTimeout(() => handleFile(file), 10);
+      const f = e.target.files[0];
+      if (f) setTimeout(() => handleFile(f), 10);
     });
   }
 
-  // Bouton reset
-  if (resetBtn) {
-    resetBtn.addEventListener('click', () => { resetApp(); resetFileInput(); });
-  }
+  if (resetBtn) resetBtn.addEventListener('click', () => { resetApp(); resetFileInput(); });
 
-  // Onglets
   document.querySelectorAll('.tab-btn').forEach(btn => {
     const tabId = btn.getAttribute('data-tab');
     if (tabId) btn.addEventListener('click', () => switchTab(tabId));

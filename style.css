@@ -119,3 +119,147 @@ tbody td { padding: 8px 8px; border-bottom: 1px solid #e5eee2; vertical-align: m
   .tab-content { padding: 12px; }
   th, td { padding: 6px 4px; font-size: 0.7rem; }
 }
+
+/* ===================================================
+   ONGLET COMPARAISON N-1 / N
+   =================================================== */
+
+/* Bandeau d'en-tête avec les deux colonnes */
+.comp-header-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.comp-col-label {
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+}
+
+.comp-col-n1 { background: #f0f4ff; border: 2px solid #c5d3f5; }
+.comp-col-n  { background: #f0faf0; border: 2px solid #b8e0b8; }
+
+.comp-year-badge {
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 6px 18px;
+  border-radius: 30px;
+}
+.comp-year-n1 { background: #dce6ff; color: #1a3a8a; }
+.comp-year-n  { background: #d4f0d4; color: #1a5e1a; }
+
+.comp-loaded {
+  font-size: 0.85rem;
+  color: #2d6a2f;
+  font-weight: 600;
+}
+
+/* Zone de drop N-1 */
+.comp-drop-zone {
+  border: 2px dashed #7db87d;
+  border-radius: 12px;
+  padding: 24px 16px;
+  cursor: pointer;
+  transition: 0.2s;
+  background: #f7fcf7;
+  width: 100%;
+}
+.comp-drop-zone:hover, .comp-drop-zone.drag-over {
+  border-color: #2d6a2f;
+  background: #edf7ed;
+}
+.comp-drop-zone p { color: #3a6a3a; font-size: 0.9rem; margin-bottom: 4px; }
+.comp-drop-zone small { color: #888; font-size: 0.8rem; }
+
+.comp-btn-upload, .comp-btn-change {
+  background: #2d6a2f;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 30px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-top: 8px;
+  transition: 0.2s;
+}
+.comp-btn-upload:hover, .comp-btn-change:hover { background: #1f5422; }
+
+/* Sections de comparaison */
+.comp-section {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #deecda;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.comp-section-title {
+  background: #eef5ea;
+  padding: 12px 20px;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #1f5422;
+  border-bottom: 1px solid #ddecd8;
+}
+
+.comp-section-body { font-size: 0.85rem; }
+
+/* Lignes de comparaison */
+.comp-row {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1.5fr 1.2fr;
+  border-bottom: 1px solid #ecf3e8;
+  transition: background 0.1s;
+}
+.comp-row:last-child { border-bottom: none; }
+.comp-row:hover { background: #f9fff7; }
+
+.comp-row-head {
+  background: #f4faf2;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: #2d572d;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Ligne modifiée : fond légèrement coloré */
+.comp-row-changed { background: #fffbf0; }
+.comp-row-changed:hover { background: #fff8e8; }
+
+.comp-cell {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+}
+
+.comp-label-col { font-weight: 600; color: #2a3a2a; }
+.comp-n1-col    { border-left: 1px solid #ecf3e8; color: #3a4a8a; }
+.comp-n-col     { border-left: 1px solid #ecf3e8; color: #1f5422; }
+.comp-diff-col  { border-left: 1px solid #ecf3e8; }
+
+/* Badges valeurs booléennes */
+.comp-bool-true  { color: #15803d; font-weight: 700; }
+.comp-bool-false { color: #b91c1c; font-weight: 700; }
+.comp-val-text   { font-family: monospace; font-size: 0.82rem; }
+.comp-empty      { color: #bbb; font-style: italic; }
+
+/* Indicateurs d'évolution */
+.comp-diff-same    { color: #888; font-size: 0.78rem; }
+.comp-diff-up      { color: #15803d; font-weight: 700; font-size: 0.82rem; }
+.comp-diff-down    { color: #b91c1c; font-weight: 700; font-size: 0.82rem; }
+.comp-diff-changed { color: #92400e; font-weight: 700; font-size: 0.82rem; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .comp-header-bar { grid-template-columns: 1fr; }
+  .comp-row { grid-template-columns: 1.5fr 1fr 1fr; }
+  .comp-diff-col { display: none; }
+}
