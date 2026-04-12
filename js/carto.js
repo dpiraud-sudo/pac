@@ -20,17 +20,50 @@ export function resetMap() {
 }
 
 export function initMap(ilotsGeo, parcelsGeo, maecGeo) {
-  // Toujours détruire la carte précédente avant d'en créer une nouvelle
   resetMap();
 
   currentMap = L.map('map').setView([46.5, 2.5], 6);
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  // Définition des fonds de carte
+  var cartoDB = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> & CartoDB',
     subdomains: 'abcd',
     maxZoom: 19,
     minZoom: 6
-  }).addTo(currentMap);
+  });
+
+  var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    attribution: '© Google'
+  });
+
+  var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    attribution: '© Google'
+  });
+
+  var esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© ESRI',
+    maxZoom: 18
+ });
+
+  var baseMaps = {
+    "🗺️ Carte classique": cartoDB,
+    "🛰️ Satellite": googleSat,
+    "🛰️ Hybride": googleHybrid,
+    "🛰️ ESRI Satellite": esriSat
+  };
+
+  // Ajout du fond par défaut
+  cartoDB.addTo(currentMap);
+  
+  // Ajout du contrôle de couches
+  L.control.layers(baseMaps).addTo(currentMap);
+
+  // ... le reste du code (groupes, popups, etc.) reste inchangé
+}
 
   currentIlotGroup   = L.layerGroup().addTo(currentMap);
   currentParcelGroup = L.layerGroup().addTo(currentMap);
