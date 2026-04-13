@@ -12,7 +12,7 @@ const CATEGORIE_LABELS = {
 };
 
 const TYPE_LABELS = {
-   "B1": "Bâtiment",
+    "B1": "Bâtiment",
     "B2": "Route, chemin ou voie ferrée",
     "B3": "Surface aménagée",
     "A1": "Mare",
@@ -30,6 +30,7 @@ const TYPE_LABELS = {
     "V6": "Broussailles",
     "V7": "Autre surface végétale non agricole",
     "V8": "Végétation non agricole non caractérisée"
+
 };
 
 export function setSNAdata(snaList) {
