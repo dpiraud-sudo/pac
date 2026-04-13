@@ -12,18 +12,24 @@ const CATEGORIE_LABELS = {
 };
 
 const TYPE_LABELS = {
-    "B1": "Bâtiment",
-    "B2": "Bâtiment agricole",
-    "B3": "Bâtiment d'élevage",
-    "A1": "Autre terre agricole",
+   "B1": "Bâtiment",
+    "B2": "Route, chemin ou voie ferrée",
+    "B3": "Surface aménagée",
+    "A1": "Mare",
     "A2": "Autre terre non agricole",
-    "A4": "Autre terre",
-    "V1": "Arbre isolé",
-    "V2": "Haie / Linéaire boisé",
-    "V3": "Boisement",
-    "V4": "Bande boisée",
-    "V5": "Zone boisée",
-    "V6": "Arbre"
+    "A3": "Surface en eau maçonnée",
+    "A4": "Fossé non maçonné",
+    "A5": "Fossé maçonné",
+    "A6": "Affleurement rocheux",
+    "A7": "Mur traditionnel en pierre répondant aux critères IAE",
+    "V1": "Arbre",
+    "V2": "Arbres alignés",
+    "V3": "Bosquet",
+    "V4": "Haie",
+    "V5": "Forêt",
+    "V6": "Broussailles",
+    "V7": "Autre surface végétale non agricole",
+    "V8": "Végétation non agricole non caractérisée"
 };
 
 export function setSNAdata(snaList) {
