@@ -167,11 +167,13 @@ export function extractAidesFromDoc(doc) {
   const eff = doc.getElementsByTagNameNS(NS2, "effectifs-animaux")[0];
   if (eff) {
     for (let ef of eff.getElementsByTagNameNS(NS2, "effectif-animal")) {
-      const pres = ef.getElementsByTagNameNS(NS2, "effectif-present-ou-transhumant")[0];
+      const pres =
+        ef.getElementsByTagNameNS(NS2, "effectif-present-ou-transhumant")[0] ||
+        ef.getElementsByTagNameNS(NS2, "effectif-present")[0];
       if (pres) {
-        const type = getText(pres, "type-animal-1");
-        const nb = getText(pres, "nb-animaux-1");
-        if (type && nb !== "") effectifsDeclares[type] = parseInt(nb, 10);
+        const type = getText(pres, "type-animal-1") || getText(pres, "type-animal-2");
+         const nb   = getText(pres, "nb-animaux-1")  || getText(pres, "nb-animaux-2");
+      if (type && nb !== "") effectifsDeclares[type] = parseInt(nb, 10);
       }
     }
   }
