@@ -16,7 +16,7 @@ const TYPE_LABELS = {
     "B2": "Route, chemin ou voie ferrée",
     "B3": "Surface aménagée",
     "A1": "Mare",
-    "A2": "Autre terre non agricole",
+    "A2": "Surface en eau non maçonnée (hors mare)",
     "A3": "Surface en eau maçonnée",
     "A4": "Fossé non maçonné",
     "A5": "Fossé maçonné",
