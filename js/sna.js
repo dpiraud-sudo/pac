@@ -33,9 +33,11 @@ const TYPE_LABELS = {
 
 };
 
+
 export function setSNAdata(snaList) {
-    snaRows = snaList;
+    snaRows = snaList || [];
     filteredSNA = [...snaRows];
+    console.log(`SNA chargés : ${snaRows.length}`);
 }
 
 export function getSNAdata() {
@@ -54,27 +56,52 @@ export function renderSNA() {
         return;
     }
     
-    tbody.innerHTML = filteredSNA.map(sna => `
-        <tr>
-            <td><strong>${escHtml(sna.numero)}</strong></td>
-            <td style="text-align:center">
-                <span style="background:${sna.categorie === 'EA' ? '#ffcdd2' : sna.categorie === 'AT' ? '#fff3e0' : '#c8e6c9'}; 
-                             color:${sna.categorie === 'EA' ? '#c62828' : sna.categorie === 'AT' ? '#ef6c00' : '#2e7d32'};
-                             padding:4px 10px; border-radius:20px; font-size:0.75rem; font-weight:600">
-                    ${CATEGORIE_LABELS[sna.categorie] || sna.categorie}
-                </span>
-            </td>
-            <td>${TYPE_LABELS[sna.type] || sna.type} (${sna.type})</td>
-            <td style="text-align:right; font-weight:700; color:#1f5e2c">${formatHa(sna.surface_ha)}</td>
-            <td>${sna.ilot_associe || '—'}</td>
-            <td>${sna.parcelle_associee || '—'}</td>
-            <td style="text-align:center">
-                ${sna.geometry_type === 'Polygon' ? '📐 Polygone' : 
-                  sna.geometry_type === 'Point' ? '📍 Point' : 
-                  sna.geometry_type === 'LineString' ? '📏 Ligne' : '—'}
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = filteredSNA.map(sna => {
+        // Récupérer le libellé de catégorie
+        const catLabel = CATEGORIE_LABELS[sna.categorieSna] || sna.categorieSna || '—';
+        const typeLabel = TYPE_LABELS[sna.typeSna] || sna.typeSna || '—';
+        
+        // Déterminer la couleur de fond selon la catégorie
+        let bgColor, textColor;
+        if (sna.categorieSna === 'VG') {
+            bgColor = '#c8e6c9';
+            textColor = '#2e7d32';
+        } else if (sna.categorieSna === 'EA') {
+            bgColor = '#b3e5fc';
+            textColor = '#0277bd';
+        } else if (sna.categorieSna === 'AT') {
+            bgColor = '#fff3e0';
+            textColor = '#ef6c00';
+        } else {
+            bgColor = '#f0f0f0';
+            textColor = '#666';
+        }
+        
+        // Déterminer le type de géométrie
+        let geomType = '—';
+        if (sna.geom && sna.geom.length >= 3) geomType = '📐 Polygone';
+        else if (sna.geomLine && sna.geomLine.length >= 2) geomType = '📏 Ligne';
+        else if (sna.geomPoint) geomType = '📍 Point';
+        
+        // Afficher les îlots associés
+        const ilotsAffiches = sna.ilots && sna.ilots.length ? sna.ilots.join(', ') : '—';
+        
+        return `
+            <tr>
+                <td><strong>${escHtml(sna.numeroSna)}</strong></td>
+                <td style="text-align:center">
+                    <span style="background:${bgColor}; color:${textColor}; padding:4px 10px; border-radius:20px; font-size:0.75rem; font-weight:600">
+                        ${catLabel}
+                    </span>
+                </td>
+                <td>${typeLabel} <span style="color:#888; font-size:0.7rem">(${escHtml(sna.typeSna)})</span></td>
+                <td style="text-align:right; font-weight:700; color:#1f5e2c">${formatHa(sna.surfaceGraphique)}</td>
+                <td>${ilotsAffiches}</td>
+                <td>${escHtml(sna.parcelle_associee || '—')}</td>
+                <td style="text-align:center">${geomType}</td>
+            </tr>
+        `;
+    }).join('');
     
     // Mettre à jour le résumé
     updateSNASummary();
@@ -84,9 +111,9 @@ function updateSNASummary() {
     const summaryDiv = document.getElementById('sna-summary');
     if (!summaryDiv) return;
     
-    const totalSurface = snaRows.reduce((sum, s) => sum + (s.surface_ha || 0), 0);
-    const categories = [...new Set(snaRows.map(s => s.categorie))];
-    const types = [...new Set(snaRows.map(s => s.type))];
+    const totalSurface = snaRows.reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
+    const categories = [...new Set(snaRows.map(s => s.categorieSna).filter(Boolean))];
+    const types = [...new Set(snaRows.map(s => s.typeSna).filter(Boolean))];
     
     summaryDiv.innerHTML = `
         <div class="eco-kpi"><div class="val">${snaRows.length}</div><div class="lbl">SNA totales</div></div>
@@ -103,10 +130,10 @@ export function filterSNA() {
         filteredSNA = [...snaRows];
     } else {
         filteredSNA = snaRows.filter(sna => 
-            sna.numero?.toLowerCase().includes(search) ||
-            sna.categorie?.toLowerCase().includes(search) ||
-            sna.type?.toLowerCase().includes(search) ||
-            sna.ilot_associe?.toLowerCase().includes(search) ||
+            sna.numeroSna?.toLowerCase().includes(search) ||
+            sna.categorieSna?.toLowerCase().includes(search) ||
+            sna.typeSna?.toLowerCase().includes(search) ||
+            (sna.ilots && sna.ilots.some(i => i.toLowerCase().includes(search))) ||
             sna.parcelle_associee?.toLowerCase().includes(search)
         );
     }
@@ -128,11 +155,11 @@ export function sortSNA(col) {
     filteredSNA.sort((a, b) => {
         let valA, valB;
         switch(col) {
-            case 'numero': valA = a.numero || ''; valB = b.numero || ''; break;
-            case 'categorie': valA = a.categorie || ''; valB = b.categorie || ''; break;
-            case 'type': valA = a.type || ''; valB = b.type || ''; break;
-            case 'surface_ha': valA = a.surface_ha || 0; valB = b.surface_ha || 0; break;
-            case 'ilot': valA = a.ilot_associe || ''; valB = b.ilot_associe || ''; break;
+            case 'numero': valA = a.numeroSna || ''; valB = b.numeroSna || ''; break;
+            case 'categorie': valA = a.categorieSna || ''; valB = b.categorieSna || ''; break;
+            case 'type': valA = a.typeSna || ''; valB = b.typeSna || ''; break;
+            case 'surface_ha': valA = a.surfaceGraphique || 0; valB = b.surfaceGraphique || 0; break;
+            case 'ilot': valA = (a.ilots && a.ilots[0]) || ''; valB = (b.ilots && b.ilots[0]) || ''; break;
             case 'parcelle': valA = a.parcelle_associee || ''; valB = b.parcelle_associee || ''; break;
             default: return 0;
         }
