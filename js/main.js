@@ -36,7 +36,10 @@ function renderApp(data) {
   parcelsGeo  = data.parcelsGeo;
   maecGeo     = data.maecGeo;
   lastXmlDoc  = data.xmlDoc;
-  snaList     = data.snaGeo || []; 
+  // Dans main.js, dans renderApp
+  snaList = data.snaGeo || [];
+  console.log('SNA reçus dans main.js :', snaList);
+  setSNAdata(snaList); 
 
   setData(allRows);
   setEcoData(allRows);

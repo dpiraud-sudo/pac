@@ -154,6 +154,10 @@ function parseSNA(xmlDoc) {
   }
   
   console.log(`SNAs extraits : ${snaList.length}`);
+
+  // Dans parser.js, fonction parseSNA, juste avant le return
+console.log('Premier SNA extrait :', snaList[0]);
+console.log('Tous les SNA :', snaList);
   return snaList;
 }
 

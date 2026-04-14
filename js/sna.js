@@ -1,13 +1,13 @@
-// js/sna.js - Gestion des Surfaces Non Agricoles (SNA)
+// js/sna.js - Version avec vos mappings d'origine
 import { formatHa, escHtml } from './utils.js';
 
 let snaRows = [];
 let filteredSNA = [];
 
-// Mapping des catégories SNA
+// Mapping des catégories SNA (vos mappings d'origine)
 const CATEGORIE_LABELS = {
     "EA": "🌾 Espace artificialisé",
-    "AT": "🌲 Autre terre",
+    "AT": "🌲 Autre terre", 
     "VG": "🌳 Végétation"
 };
 
@@ -30,14 +30,20 @@ const TYPE_LABELS = {
     "V6": "Broussailles",
     "V7": "Autre surface végétale non agricole",
     "V8": "Végétation non agricole non caractérisée"
-
 };
 
+// Couleurs par catégorie (vos mappings d'origine)
+const getCategoryStyle = (categorie) => {
+    if (categorie === 'VG') return { bg: '#c8e6c9', text: '#2e7d32' };
+    if (categorie === 'EA') return { bg: '#b3e5fc', text: '#0277bd' };
+    if (categorie === 'AT') return { bg: '#fff3e0', text: '#ef6c00' };
+    return { bg: '#f0f0f0', text: '#666' };
+};
 
 export function setSNAdata(snaList) {
     snaRows = snaList || [];
     filteredSNA = [...snaRows];
-    console.log(`SNA chargés : ${snaRows.length}`);
+    console.log(`SNA chargés : ${snaRows.length}`, snaRows);
 }
 
 export function getSNAdata() {
@@ -45,11 +51,16 @@ export function getSNAdata() {
 }
 
 export function renderSNA() {
+    console.log('renderSNA appelé, filteredSNA.length =', filteredSNA.length);
+    
     const statsSpan = document.getElementById('stats-sna');
     if (statsSpan) statsSpan.textContent = `${filteredSNA.length} SNA (sur ${snaRows.length} total)`;
     
     const tbody = document.getElementById('tbody-sna');
-    if (!tbody) return;
+    if (!tbody) {
+        console.error('tbody-sna non trouvé');
+        return;
+    }
     
     if (filteredSNA.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:40px">Aucune Surface Non Agricole (SNA) trouvée</td></tr>';
@@ -57,53 +68,38 @@ export function renderSNA() {
     }
     
     tbody.innerHTML = filteredSNA.map(sna => {
-        // Récupérer le libellé de catégorie
+        // Afficher l'objet pour déboguer
+        console.log('Rendu SNA:', sna);
+        
         const catLabel = CATEGORIE_LABELS[sna.categorieSna] || sna.categorieSna || '—';
         const typeLabel = TYPE_LABELS[sna.typeSna] || sna.typeSna || '—';
+        const style = getCategoryStyle(sna.categorieSna);
         
-        // Déterminer la couleur de fond selon la catégorie
-        let bgColor, textColor;
-        if (sna.categorieSna === 'VG') {
-            bgColor = '#c8e6c9';
-            textColor = '#2e7d32';
-        } else if (sna.categorieSna === 'EA') {
-            bgColor = '#b3e5fc';
-            textColor = '#0277bd';
-        } else if (sna.categorieSna === 'AT') {
-            bgColor = '#fff3e0';
-            textColor = '#ef6c00';
-        } else {
-            bgColor = '#f0f0f0';
-            textColor = '#666';
-        }
-        
-        // Déterminer le type de géométrie
         let geomType = '—';
         if (sna.geom && sna.geom.length >= 3) geomType = '📐 Polygone';
         else if (sna.geomLine && sna.geomLine.length >= 2) geomType = '📏 Ligne';
         else if (sna.geomPoint) geomType = '📍 Point';
         
-        // Afficher les îlots associés
         const ilotsAffiches = sna.ilots && sna.ilots.length ? sna.ilots.join(', ') : '—';
+        const surfaceHa = sna.surfaceGraphique ? sna.surfaceGraphique.toFixed(2).replace('.', ',') : '0,00';
         
         return `
             <tr>
                 <td><strong>${escHtml(sna.numeroSna)}</strong></td>
                 <td style="text-align:center">
-                    <span style="background:${bgColor}; color:${textColor}; padding:4px 10px; border-radius:20px; font-size:0.75rem; font-weight:600">
+                    <span style="background:${style.bg}; color:${style.text}; padding:4px 10px; border-radius:20px; font-size:0.75rem; font-weight:600">
                         ${catLabel}
                     </span>
                 </td>
                 <td>${typeLabel} <span style="color:#888; font-size:0.7rem">(${escHtml(sna.typeSna)})</span></td>
-                <td style="text-align:right; font-weight:700; color:#1f5e2c">${formatHa(sna.surfaceGraphique)}</td>
+                <td style="text-align:right; font-weight:700; color:#1f5e2c">${surfaceHa} ha</td>
                 <td>${ilotsAffiches}</td>
-                <td>${escHtml(sna.parcelle_associee || '—')}</td>
+                <td>${escHtml(sna.parcelleAssociee || '—')}</td>
                 <td style="text-align:center">${geomType}</td>
             </tr>
         `;
     }).join('');
     
-    // Mettre à jour le résumé
     updateSNASummary();
 }
 
@@ -130,11 +126,11 @@ export function filterSNA() {
         filteredSNA = [...snaRows];
     } else {
         filteredSNA = snaRows.filter(sna => 
-            sna.numeroSna?.toLowerCase().includes(search) ||
-            sna.categorieSna?.toLowerCase().includes(search) ||
-            sna.typeSna?.toLowerCase().includes(search) ||
+            (sna.numeroSna && sna.numeroSna.toLowerCase().includes(search)) ||
+            (sna.categorieSna && sna.categorieSna.toLowerCase().includes(search)) ||
+            (sna.typeSna && sna.typeSna.toLowerCase().includes(search)) ||
             (sna.ilots && sna.ilots.some(i => i.toLowerCase().includes(search))) ||
-            sna.parcelle_associee?.toLowerCase().includes(search)
+            (sna.parcelleAssociee && sna.parcelleAssociee.toLowerCase().includes(search))
         );
     }
     
@@ -160,7 +156,7 @@ export function sortSNA(col) {
             case 'type': valA = a.typeSna || ''; valB = b.typeSna || ''; break;
             case 'surface_ha': valA = a.surfaceGraphique || 0; valB = b.surfaceGraphique || 0; break;
             case 'ilot': valA = (a.ilots && a.ilots[0]) || ''; valB = (b.ilots && b.ilots[0]) || ''; break;
-            case 'parcelle': valA = a.parcelle_associee || ''; valB = b.parcelle_associee || ''; break;
+            case 'parcelle': valA = a.parcelleAssociee || ''; valB = b.parcelleAssociee || ''; break;
             default: return 0;
         }
         
