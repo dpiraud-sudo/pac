@@ -278,7 +278,7 @@ function renderTable(root) {
   }
 
   if (isnRows.length > 0) {
-    html += section('👨‍🌾 ISN (Installation des jeunes agriculteurs)', isnRows);
+    html += section('👨‍🌾 ISN (Interlocuteur agréé ISN)', isnRows);
   }
 
   // ── Pilier 1 ──────────────────────────────────────
