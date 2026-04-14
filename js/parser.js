@@ -75,45 +75,85 @@ function extractLambertPts(gc) {
 // ===================================================
 function parseSNA(xmlDoc) {
   const NS = 'urn:x-telepac:fr.gouv.agriculture.telepac:echange-producteur';
+  const GML = 'http://www.opengis.net/gml';
   const snaList = [];
 
   for (const sna of xmlDoc.getElementsByTagNameNS(NS, 'sna-declaree')) {
-    const g = (tag) => sna.getElementsByTagNameNS(NS, tag)[0]?.textContent || '';
-
-    const geomNode =
-      sna.getElementsByTagNameNS('http://www.opengis.net/gml', 'Polygon')[0] ||
-      sna.getElementsByTagNameNS('http://www.opengis.net/gml', 'Point')[0] ||
-      sna.getElementsByTagNameNS('http://www.opengis.net/gml', 'LineString')[0];
-
-    let ilotAssocie = null, parcelleAssociee = null;
-
+    const getText = (tag) => sna.getElementsByTagNameNS(NS, tag)[0]?.textContent?.trim() || '';
+    
+    const numeroSna = getText('numeroSna');
+    const typeSna = getText('typeSna');
+    const categorieSna = getText('categorieSna');
+    const surfaceGraphique = parseFloat(getText('surfaceGraphique')) || 0;
+    const largeurCalculee = parseFloat(getText('largeurCalculee')) || null;
+    const longueurIae = parseFloat(getText('longueurIae')) || null;
+    const dateMiseAjour = getText('dateMiseAjour') || null;
+    
+    // Récupération des îlots associés
+    const ilots = [];
     const interIlots = sna.getElementsByTagNameNS(NS, 'intersectionsSnaIlots')[0];
     if (interIlots) {
-      const i = interIlots.getElementsByTagNameNS(NS, 'intersectionSnaIlot')[0];
-      if (i) ilotAssocie = i.getElementsByTagNameNS(NS, 'numeroIlot')[0]?.textContent || null;
-    }
-
-    const interParc = sna.getElementsByTagNameNS(NS, 'intersectionsSnaParcelles')[0];
-    if (interParc) {
-      const i = interParc.getElementsByTagNameNS(NS, 'intersectionSnaParcelle')[0];
-      if (i) {
-        ilotAssocie = i.getElementsByTagNameNS(NS, 'numeroIlot')[0]?.textContent || ilotAssocie;
-        parcelleAssociee = i.getElementsByTagNameNS(NS, 'numeroParcelle')[0]?.textContent || null;
+      const intersections = interIlots.getElementsByTagNameNS(NS, 'intersectionSnaIlot');
+      for (const inter of intersections) {
+        const numIlot = inter.getElementsByTagNameNS(NS, 'numeroIlot')[0]?.textContent?.trim();
+        if (numIlot) ilots.push(numIlot);
       }
     }
-
-    snaList.push({
-      numero: g('numeroSna'),
-      surface_ha: parseFloat(g('surfaceGraphique')) || 0,
-      categorie: g('categorieSna'),
-      type: g('typeSna'),
-      largeur: g('largeur') ? parseFloat(g('largeur')) : null,
-      geometry_type: geomNode?.localName || null,
-      ilot_associe: ilotAssocie,
-      parcelle_associee: parcelleAssociee
-    });
+    
+    let parcelleAssociee = null;
+    const interParc = sna.getElementsByTagNameNS(NS, 'intersectionsSnaParcelles')[0];
+    if (interParc) {
+      const inter = interParc.getElementsByTagNameNS(NS, 'intersectionSnaParcelle')[0];
+      if (inter) {
+        parcelleAssociee = inter.getElementsByTagNameNS(NS, 'numeroParcelle')[0]?.textContent?.trim() || null;
+        const numIlot = inter.getElementsByTagNameNS(NS, 'numeroIlot')[0]?.textContent?.trim();
+        if (numIlot && !ilots.includes(numIlot)) ilots.push(numIlot);
+      }
+    }
+    
+    // Récupération de la géométrie
+    let geom = null;
+    let geomLine = null;
+    let geomPoint = null;
+    
+    const polygonNode = sna.getElementsByTagNameNS(GML, 'Polygon')[0];
+    if (polygonNode) {
+      geom = parseGmlPolygon(polygonNode.outerHTML);
+    }
+    
+    if (!geom) {
+      const lineNode = sna.getElementsByTagNameNS(GML, 'LineString')[0];
+      if (lineNode) {
+        geomLine = parseGmlLineString(lineNode.outerHTML);
+      }
+    }
+    
+    if (!geom && !geomLine) {
+      const pointNode = sna.getElementsByTagNameNS(GML, 'Point')[0];
+      if (pointNode) {
+        geomPoint = parseGmlPoint(pointNode.outerHTML);
+      }
+    }
+    
+    if (geom || geomLine || geomPoint) {
+      snaList.push({
+        numeroSna,
+        typeSna,
+        categorieSna,
+        surfaceGraphique,
+        largeurCalculee,
+        longueurIae,
+        ilots,
+        parcelleAssociee,
+        dateMiseAjour,
+        geom,
+        geomLine,
+        geomPoint
+      });
+    }
   }
-
+  
+  console.log(`SNAs extraits : ${snaList.length}`);
   return snaList;
 }
 
@@ -311,6 +351,8 @@ export function parseXML(xmlString) {
   console.log(`MAEC — surfaciques : ${maecSurf.length}, linéaires : ${maecLine.length}, ponctuelles : ${maecPoint.length}`);
   console.log(`Temps de parsing : ${(performance.now() - t0).toFixed(0)} ms`);
 
+ // js/parser.js - Modifiez la fin de la fonction parseXML
+
   return {
     meta,
     rows,
@@ -318,7 +360,7 @@ export function parseXML(xmlString) {
     ilotsGeo: Array.from(ilotsMap.values()),
     parcelsGeo: parcelsList,
     maecGeo: { surfaciques: maecSurf, lineaires: maecLine, ponctuelles: maecPoint },
-    snaList: parseSNA(xmlDoc),
+    snaGeo: parseSNA(xmlDoc),  // ← Changé de snaList à snaGeo
     xmlDoc
   };
 }

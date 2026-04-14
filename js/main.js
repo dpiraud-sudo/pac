@@ -36,7 +36,7 @@ function renderApp(data) {
   parcelsGeo  = data.parcelsGeo;
   maecGeo     = data.maecGeo;
   lastXmlDoc  = data.xmlDoc;
-  snaList     = data.snaList || [];
+  snaList     = data.snaGeo || []; 
 
   setData(allRows);
   setEcoData(allRows);
