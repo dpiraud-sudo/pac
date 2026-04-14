@@ -46,6 +46,15 @@ const AIDES_LABELS = {
   "assurance-recolte":       "Assurance récolte"
 };
 
+// Mapping pour les labels ISN
+const ISN_LABELS = {
+  "interlocuteur-agree-ISN": "Interlocuteur agréé ISN",
+  "autorisation-transmission-donnees-interlocuteur-ISN": "Autorisation transmission données interlocuteur ISN",
+  "renonciation-ISN": "Renonciation ISN",
+  "transmission-donnees-fins-commerciales": "Transmission données fins commerciales",
+  "autorisation-transmission-donnees": "Autorisation transmission données"
+};
+
 // ===================================================
 // API PUBLIQUE
 // ===================================================
@@ -239,6 +248,39 @@ function renderTable(root) {
     row('Email',             dN1.email,            dN.email,            'text'),
   ]);
 
+  // ── Assureur ──────────────────────────────────────
+  if (dN.assureur || dN1.assureur) {
+    html += section('🏢 Assurance récolte', [
+      row('Nom de l\'assureur',
+        dN1.assureur || '—',
+        dN.assureur || '—',
+        'text'),
+    ]);
+  }
+
+  // ── Questions ISN (Installation des jeunes agriculteurs) ──
+  const isnFields = [
+    { key: 'interlocuteur-agree-ISN', label: 'Interlocuteur agréé ISN' },
+    { key: 'autorisation-transmission-donnees-interlocuteur-ISN', label: 'Autorisation transmission données interlocuteur ISN' },
+    { key: 'renonciation-ISN', label: 'Renonciation ISN' },
+    { key: 'transmission-donnees-fins-commerciales', label: 'Transmission données fins commerciales' },
+    { key: 'autorisation-transmission-donnees', label: 'Autorisation transmission données' }
+  ];
+
+  const isnRows = [];
+  for (const field of isnFields) {
+    const valN1 = dN1[field.key];
+    const valN = dN[field.key];
+    // Afficher la ligne si la valeur existe dans au moins un des deux fichiers
+    if (valN !== undefined || valN1 !== undefined) {
+      isnRows.push(row(field.label, valN1, valN, 'bool'));
+    }
+  }
+
+  if (isnRows.length > 0) {
+    html += section('👨‍🌾 ISN (Installation des jeunes agriculteurs)', isnRows);
+  }
+
   // ── Pilier 1 ──────────────────────────────────────
   const p1Keys = [
     'aides-decouplees', 'aide-jeunes-agriculteurs', 'eco-regime',
@@ -321,8 +363,19 @@ function section(title, rowsHtml) {
 }
 
 function row(label, valN1, valN, type) {
-  const n1 = (valN1 !== undefined && valN1 !== null && valN1 !== '') ? String(valN1) : '—';
-  const n  = (valN  !== undefined && valN  !== null && valN  !== '') ? String(valN)  : '—';
+  // Convertir les valeurs booléennes string en true/french lisible
+  let processedValN1 = valN1;
+  let processedValN = valN;
+  
+  if (type === 'bool') {
+    if (valN1 === 'true') processedValN1 = 'true';
+    if (valN1 === 'false') processedValN1 = 'false';
+    if (valN === 'true') processedValN = 'true';
+    if (valN === 'false') processedValN = 'false';
+  }
+  
+  const n1 = (processedValN1 !== undefined && processedValN1 !== null && processedValN1 !== '') ? String(processedValN1) : '—';
+  const n  = (processedValN !== undefined && processedValN !== null && processedValN !== '') ? String(processedValN) : '—';
   const changed = n1 !== n;
 
   let diffHtml;
@@ -333,10 +386,16 @@ function row(label, valN1, valN, type) {
     else if (n1 === 'true' && n === 'false') diffHtml = `<span class="comp-diff-down">▼ Désactivé</span>`;
     else diffHtml = `<span class="comp-diff-changed">↔ Modifié</span>`;
   } else if (type === 'number') {
-    const delta = Number(n) - Number(n1);
-    diffHtml = delta > 0
-      ? `<span class="comp-diff-up">▲ +${delta}</span>`
-      : `<span class="comp-diff-down">▼ ${delta}</span>`;
+    const numN1 = parseFloat(n1);
+    const numN = parseFloat(n);
+    if (!isNaN(numN1) && !isNaN(numN)) {
+      const delta = numN - numN1;
+      diffHtml = delta > 0
+        ? `<span class="comp-diff-up">▲ +${delta}</span>`
+        : `<span class="comp-diff-down">▼ ${delta}</span>`;
+    } else {
+      diffHtml = `<span class="comp-diff-changed">↔ Modifié</span>`;
+    }
   } else {
     diffHtml = `<span class="comp-diff-changed">↔ Modifié</span>`;
   }
