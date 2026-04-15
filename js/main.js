@@ -78,6 +78,75 @@ function renderApp(data) {
   initMap(ilotsGeo, parcelsGeo, maecGeo);
 }
 
+// Dans votre fonction de parsing du XML (par exemple parseXML)
+// Après avoir extrait les îlots, parcelles, MAEC, extrayez aussi les SNA.
+
+const snaList = [];
+// Pour chaque élément <sna-declaree> dans le XML
+const snaNodes = xml.querySelectorAll('sna-declaree');
+snaNodes.forEach(node => {
+    const sna = {
+        numeroSna: node.querySelector('numeroSna')?.textContent,
+        surfaceGraphique: parseFloat(node.querySelector('surfaceGraphique')?.textContent),
+        categorieSna: node.querySelector('categorieSna')?.textContent,
+        typeSna: node.querySelector('typeSna')?.textContent,
+        ilots: [],
+        parcelleAssociee: null,
+        geom: null,
+        geomLine: null,
+        geomPoint: null
+    };
+    
+    // Extraire les îlots associés
+    const ilotNodes = node.querySelectorAll('intersectionsSnaIlots intersectionSnaIlot numeroIlot');
+    ilotNodes.forEach(ilotNode => {
+        sna.ilots.push(ilotNode.textContent);
+    });
+    
+    // Extraire la parcelle associée si présente
+    const parcelleNode = node.querySelector('intersectionsSnaParcelles intersectionSnaParcelle numeroParcelle');
+    if (parcelleNode) sna.parcelleAssociee = parcelleNode.textContent;
+    
+    // Extraire la géométrie (Polygon, LineString, Point)
+    const geomPolygon = node.querySelector('geometrie gml\\:Polygon, geometrie Polygon');
+    const geomLine = node.querySelector('geometrie gml\\:LineString, geometrie LineString');
+    const geomPoint = node.querySelector('geometrie gml\\:Point, geometrie Point');
+    
+    if (geomPolygon) {
+        const coordsText = geomPolygon.querySelector('gml\\:coordinates, coordinates')?.textContent;
+        if (coordsText) {
+            sna.geom = parseCoordinatesToLatLngArray(coordsText);
+        }
+    } else if (geomLine) {
+        const coordsText = geomLine.querySelector('gml\\:coordinates, coordinates')?.textContent;
+        if (coordsText) {
+            sna.geomLine = parseCoordinatesToLatLngArray(coordsText);
+        }
+    } else if (geomPoint) {
+        const coordsText = geomPoint.querySelector('gml\\:coordinates, coordinates')?.textContent;
+        if (coordsText) {
+            const [x, y] = coordsText.trim().split(',').map(Number);
+            sna.geomPoint = [y, x]; // Leaflet utilise [lat, lng]
+        }
+    }
+    
+    if (sna.geom || sna.geomLine || sna.geomPoint) {
+        snaList.push(sna);
+    }
+});
+
+// Ensuite, appelez initMap avec les SNA
+initMap(ilotsGeo, parcelsGeo, maecGeo, snaList);
+
+
+function parseCoordinatesToLatLngArray(coordsText) {
+    const points = coordsText.trim().split(/\s+/);
+    return points.map(point => {
+        const [lng, lat] = point.split(',').map(Number);
+        return [lat, lng]; // Leaflet utilise [lat, lng]
+    });
+}
+
 // ===================================================
 // GESTION DU FICHIER
 // ===================================================
