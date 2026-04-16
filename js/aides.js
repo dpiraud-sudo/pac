@@ -164,21 +164,22 @@ export function extractAidesFromDoc(doc) {
   }
   
   const effectifsDeclares = {};
-  const eff = doc.getElementsByTagNameNS(NS2, "effectifs-animaux")[0];
-    if (eff) {
-      for (let ef of eff.getElementsByTagNameNS(NS2, "effectif-animal")) {
-    // Récupère toutes les balises "effectif-present-ou-transhumant" et "effectif-present"
-     const presents = [
+const eff = doc.getElementsByTagNameNS(NS2, "effectifs-animaux")[0];
+if (eff) {
+  for (let ef of eff.getElementsByTagNameNS(NS2, "effectif-animal")) {
+    // Récupère TOUTES les balises "effectif-present-ou-transhumant" et "effectif-present"
+    const presents = [
       ...ef.getElementsByTagNameNS(NS2, "effectif-present-ou-transhumant"),
       ...ef.getElementsByTagNameNS(NS2, "effectif-present")
-      ];
-      for (let pres of presents) {
-        const type = getText(pres, "type-animal-1") || getText(pres, "type-animal-2");
-        const nb   = getText(pres, "nb-animaux-1")  || getText(pres, "nb-animaux-2");
+    ];
+    for (let pres of presents) {
+      const type = getText(pres, "type-animal-1") || getText(pres, "type-animal-2");
+      const nb   = getText(pres, "nb-animaux-1")  || getText(pres, "nb-animaux-2");
       if (type && nb !== "") effectifsDeclares[type] = parseInt(nb, 10);
     }
   }
 }
+result.effectifsDeclares = effectifsDeclares;
   result.effectifsDeclares = effectifsDeclares;
   
   return result;
