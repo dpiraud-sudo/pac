@@ -295,8 +295,9 @@ export function parseXML(xmlString) {
       for (const elem of maecS.getElementsByTagNameNS(NS, 'element-surfacique')) {
         const numElem  = getText(elem, 'numero-element');
         const codeMes  = getText(elem, 'code-mesure');
-        const premCamp = getText(elem, 'premiere-campagne');
-        const dernCamp = getText(elem, 'derniere-campagne');
+        const sousType = getText(elem, 'sous-type-geometrie');
+        const premCamp = getText(elem, 'premiere-campagne') || null;
+        const dernCamp = getText(elem, 'derniere-campagne') || null;
 
         // Surface calculée
         const gc = elem.getElementsByTagNameNS(GML, 'coordinates')[0];
@@ -307,7 +308,14 @@ export function parseXML(xmlString) {
         const geomNode = elem.getElementsByTagNameNS(GML, 'Polygon')[0];
         if (geomNode) {
           const poly = parseGmlPolygon(geomNode.outerHTML);
-          if (poly) maecSurf.push({ code: codeMes, geom: poly });
+          if (poly) maecSurf.push({
+            code: codeMes,
+            sousType: sousType || 'S',
+            numero: numElem,
+            premiereC: premCamp,
+            derniereC: dernCamp,
+            geom: poly
+          });
         }
 
         const matchRow = rows.find(r => r.ilot_num === iNum && r.num_parcelle === numElem);
@@ -328,11 +336,22 @@ export function parseXML(xmlString) {
     const maecL = ilot.getElementsByTagNameNS(NS, 'elements-maec-L')[0];
     if (maecL) {
       for (const elem of maecL.getElementsByTagNameNS(NS, 'element-lineaire')) {
-        const codeMes = getText(elem, 'code-mesure');
+        const codeMes  = getText(elem, 'code-mesure');
+        const sousType = getText(elem, 'sous-type-geometrie');
+        const numElem  = getText(elem, 'numero-element');
+        const premCamp = getText(elem, 'premiere-campagne') || null;
+        const dernCamp = getText(elem, 'derniere-campagne') || null;
         const geomNode = elem.getElementsByTagNameNS(GML, 'LineString')[0];
         if (geomNode) {
           const line = parseGmlLineString(geomNode.outerHTML);
-          if (line) maecLine.push({ code: codeMes, geom: line });
+          if (line) maecLine.push({
+            code: codeMes,
+            sousType: sousType || 'L',
+            numero: numElem,
+            premiereC: premCamp,
+            derniereC: dernCamp,
+            geom: line
+          });
         }
       }
     }
@@ -341,11 +360,22 @@ export function parseXML(xmlString) {
     const maecP = ilot.getElementsByTagNameNS(NS, 'elements-maec-P')[0];
     if (maecP) {
       for (const elem of maecP.getElementsByTagNameNS(NS, 'element-ponctuel')) {
-        const codeMes = getText(elem, 'code-mesure');
+        const codeMes  = getText(elem, 'code-mesure');
+        const sousType = getText(elem, 'sous-type-geometrie');
+        const numElem  = getText(elem, 'numero-element');
+        const premCamp = getText(elem, 'premiere-campagne') || null;
+        const dernCamp = getText(elem, 'derniere-campagne') || null;
         const geomNode = elem.getElementsByTagNameNS(GML, 'Point')[0];
         if (geomNode) {
           const pt = parseGmlPoint(geomNode.outerHTML);
-          if (pt) maecPoint.push({ code: codeMes, geom: pt });
+          if (pt) maecPoint.push({
+            code: codeMes,
+            sousType: sousType || 'P',
+            numero: numElem,
+            premiereC: premCamp,
+            derniereC: dernCamp,
+            geom: pt
+          });
         }
       }
     }
