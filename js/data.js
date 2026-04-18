@@ -63,8 +63,8 @@ addC("Autres oléagineux d'hiver", "OHR", [{ code: "001", label: "Récolte en gr
 // 1.3 PROTÉAGINEUX & LÉGUMINEUSES
 // ===================================================
 addC("Arachide", "ARA", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Protéagineux et légumineuses fourragères", "1.3");
-addC("Féverole d'hiver", "FVP", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Protéagineux et légumineuses fourragères", "1.3");
-addC("Féverole de printemps", "FVL", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Protéagineux et légumineuses fourragères", "1.3");
+addC("Féverole d'hiver", "FVL", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Protéagineux et légumineuses fourragères", "1.3");
+addC("Féverole de printemps", "FVP", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Protéagineux et légumineuses fourragères", "1.3");
 addC("Lentille", "LEN", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Protéagineux et légumineuses fourragères", "1.3");
 addC("Lupin doux", "LUP", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Protéagineux et légumineuses fourragères", "1.3");
 addC("Pois chiche", "PCH", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Protéagineux et légumineuses fourragères", "1.3");
