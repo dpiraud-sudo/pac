@@ -89,7 +89,7 @@ addC("Mélange multi-espèces légumineuses fourragères prépond.", "MLC", [{ c
 addC("Mélange multi-espèces (céréales, oléagineux, légumineuses) sans graminées", "CPL", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.4");
 addC("Cultures en inter-rangs (2 cultures >25% chacune)", "CID", [{ code: "CID", label: "Culture 1 + Culture 2 à préciser" }], "TA", "Selon cultures présentes", "1.4");
 addC("Cultures en inter-rangs (3 cultures >25%)", "CIT", [{ code: "CIT", label: "Trois cultures à déclarer" }], "TA", "Selon cultures présentes", "1.4");
-addC("Maraîchage diversifié", "MID", [{ code: "001", label: "Légumes frais et fruits (aide au maraîchage)" }, { code: "002", label: "Légumes/fruits/PPAM (non éligible aide)" }, { code: "003", label: "Légumes/fruits sous abattis" }], "TA", "Autres cultures", "1.4");
+addC("Maraîchage diversifié", "MDI", [{ code: "001", label: "Légumes frais et fruits (aide au maraîchage)" }, { code: "002", label: "Légumes/fruits/PPAM (non éligible aide)" }, { code: "003", label: "Légumes/fruits sous abattis" }], "TA", "Autres cultures", "1.4");
 addC("Surfaces hautement diversifiées (DOM)", "SHD", [], "CP", "Sans objet", "1.4");
 
 // ===================================================
