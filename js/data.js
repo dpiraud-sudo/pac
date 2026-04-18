@@ -38,7 +38,8 @@ addC("Triticale d'hiver", "TTH", [{ code: "001", label: "Récolte en grains" }, 
 addC("Triticale de printemps", "TTP", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Céréales de printemps", "1.1");
 addC("Millet", "MLT", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
 addC("Moha", "MOH", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
-addC("Maïs grain et ensilage", "MIS", [{ code: "001", label: "Grain" }, { code: "002", label: "Ensilage" }, { code: "003", label: "Semences" }, { code: "004", label: "Pop-corn" }, { code: "005", label: "Maïs doux" }], "TA", "Céréales de printemps", "1.1");
+addC("Maïs grain et ensilage", "MIS", [{ code: "001", label: "Grain" }, { code: "002", label: "Ensilage" }, { code: "003", label: "Vert" }], "TA", "Céréales de printemps", "1.1");
+addC("Maïs doux","MID", [], "TA", "Céréales de printemps", "1.1");
 addC("Riz", "RIZ", [{ code: "001", label: "Riz grain" }, { code: "002", label: "Riz semences" }], "TA", "Autres cultures", "1.1");
 addC("Autres céréales ou mélange de céréales", "ANR", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
 addC("Sarrasin (blé noir)", "SAB", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
