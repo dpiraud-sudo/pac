@@ -97,7 +97,8 @@
     <button class="tab-btn" data-tab="maec">📝 Engagements MAEC</button>
     <button class="tab-btn" data-tab="balises">🔍 Détail parcelles</button>
     <button class="tab-btn" data-tab="pp">🌿 PP / Bio / MAEC</button>
-    <button class="tab-btn" data-tab="comparaison">🔄 Comparaison N-1 / N</button>    
+    <button class="tab-btn" data-tab="comparaison">🔄 Comparaison N-1 / N</button>
+    <button class="tab-btn" data-tab="eligibilite">🎯 Éligibilité aides couplées</button>
   </div>
 
   <!-- Onglet Parcelles -->
@@ -256,6 +257,89 @@
   <!-- Onglet Comparaison N-1 / N -->
   <div id="tab-comparaison" class="tab-content">
     <div id="comp-result-area" style="padding:4px 0"></div>
+  </div>
+
+
+  <!-- Onglet Éligibilité aides couplées végétales -->
+  <div id="tab-eligibilite" class="tab-content">
+    <div style="max-width:100%">
+
+      <!-- En-tête -->
+      <div style="margin-bottom:20px">
+        <h2 style="font-size:1.3rem;color:#1f5422;margin:0 0 6px 0;display:flex;align-items:center;gap:10px">
+          🎯 Analyseur d'éligibilité
+          <span style="font-size:0.78rem;font-weight:normal;background:#eef5ea;padding:4px 12px;border-radius:40px;color:#2c6e3c">Aides couplées végétales</span>
+        </h2>
+        <div style="color:#4a6741;border-left:4px solid #7bb86c;padding-left:14px;font-size:0.88rem">
+          Analyse automatique basée sur le fichier XML déjà chargé — détecte les aides éligibles et les compare avec celles demandées.
+        </div>
+      </div>
+
+      <!-- Zone message si pas de fichier -->
+      <div id="elig-no-file" style="background:#fff3e0;border-left:4px solid #e6a017;padding:12px 16px;border-radius:12px;margin-bottom:16px;font-size:0.88rem">
+        ⚠️ Chargez d'abord un fichier XML via l'écran d'accueil pour lancer l'analyse.
+      </div>
+
+      <!-- Résultats -->
+      <div id="elig-results" style="display:none">
+
+        <!-- Stats globales -->
+        <div class="eco-summary-bar" style="margin-bottom:20px">
+          <div class="eco-kpi"><div class="val" id="elig-stat-parcelles">—</div><div class="lbl">Parcelles analysées</div></div>
+          <div class="eco-kpi"><div class="val" id="elig-stat-eligibles">—</div><div class="lbl">Parcelles éligibles</div></div>
+          <div class="eco-kpi"><div class="val" id="elig-stat-aides-dem">—</div><div class="lbl">Aides demandées</div></div>
+          <div class="eco-kpi"><div class="val" id="elig-stat-aides-elig">—</div><div class="lbl">Aides éligibles</div></div>
+          <div class="eco-kpi"><div class="val" id="elig-stat-manquantes" style="color:#e6a017">—</div><div class="lbl">Aides non demandées</div></div>
+        </div>
+
+        <!-- Alerte aides manquantes -->
+        <div id="elig-alert" style="display:none;background:#fff3e0;border-left:4px solid #e6a017;padding:14px 18px;border-radius:12px;margin-bottom:20px;font-size:0.88rem"></div>
+
+        <!-- 3 colonnes comparaison -->
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:20px">
+          <div style="flex:1;min-width:240px;background:#f8faf6;border-radius:16px;padding:16px 18px;border:1px solid #e2ecd9">
+            <h3 style="margin:0 0 10px 0;color:#1f5422;font-size:0.9rem;display:flex;align-items:center;gap:8px">
+              📋 Aides demandées
+              <span style="background:#2c6e3c;color:white;border-radius:40px;padding:1px 10px;font-size:0.72rem" id="elig-count-dem">0</span>
+            </h3>
+            <div id="elig-list-dem"></div>
+          </div>
+          <div style="flex:1;min-width:240px;background:#f8faf6;border-radius:16px;padding:16px 18px;border:1px solid #e2ecd9">
+            <h3 style="margin:0 0 10px 0;color:#1f5422;font-size:0.9rem;display:flex;align-items:center;gap:8px">
+              ✅ Aides éligibles
+              <span style="background:#2c6e3c;color:white;border-radius:40px;padding:1px 10px;font-size:0.72rem" id="elig-count-elig">0</span>
+            </h3>
+            <div id="elig-list-elig"></div>
+          </div>
+          <div style="flex:1;min-width:240px;background:#f8faf6;border-radius:16px;padding:16px 18px;border:1px solid #e2ecd9">
+            <h3 style="margin:0 0 10px 0;color:#e6a017;font-size:0.9rem;display:flex;align-items:center;gap:8px">
+              ⚠️ À ne pas oublier
+              <span style="background:#e6a017;color:white;border-radius:40px;padding:1px 10px;font-size:0.72rem" id="elig-count-manq">0</span>
+            </h3>
+            <div id="elig-list-manq"></div>
+          </div>
+        </div>
+
+        <!-- Tableau parcelles éligibles -->
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Îlot</th>
+                <th>Parcelle</th>
+                <th>Code</th>
+                <th>Précision</th>
+                <th>Surface (ares)</th>
+                <th>Aides éligibles</th>
+                <th>Demandée ?</th>
+              </tr>
+            </thead>
+            <tbody id="elig-tbody"></tbody>
+          </table>
+        </div>
+
+      </div><!-- /elig-results -->
+    </div>
   </div>
 
   <!-- Onglet SNA -->
