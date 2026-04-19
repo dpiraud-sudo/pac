@@ -13,6 +13,7 @@ import { initMap, invalidateMapSize, resetMap } from './carto.js';
 import { setIlotsData, renderIlots } from './ilots.js';
 import { setSNAdata, renderSNA, filterSNA, sortSNA } from './sna.js';
 import { setDocN, renderComparaison, resetComparaison } from './comparaison.js';
+import { renderEligibilite } from './eligibilite.js';
 
 // ===================================================
 // VARIABLES GLOBALES
@@ -74,6 +75,7 @@ function renderApp(data) {
   renderPP();
   renderAides(lastXmlDoc);
   renderComparaison();
+  renderEligibilite(lastXmlDoc);
   renderSNA();
   initMap(ilotsGeo, parcelsGeo, maecGeo, snaList);
 }
