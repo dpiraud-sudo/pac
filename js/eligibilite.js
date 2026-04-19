@@ -1,35 +1,31 @@
-// js/eligibilite.js
-// Analyse l'éligibilité aux aides couplées végétales à partir du xmlDoc déjà parsé.
+// js/eligibilite.js - Version corrigée
+import { formatHa, escHtml } from './utils.js';
 
 // ===================================================
-// RÈGLES D'ÉLIGIBILITÉ (identiques à la page standalone)
+// RÈGLES D'ÉLIGIBILITÉ
 // ===================================================
 const ELIGIBILITY_RULES = [
-  { codes: ["RIZ"],                                                                                    precision: "001",         aide: "Aide à la production de riz" },
-  { codes: ["BDH","BDP"],                                                                              precision: "001",         aide: "Aide à la production de blé dur" },
-  { codes: ["HBL"],                                                                                    precision: null,          aide: "Aide à la production de houblon" },
-  { codes: ["TOM"],                                                                                    precision: "001",         aide: "Aide à la production de tomates destinées à la transformation" },
-  { codes: ["GRA"],                                                                                    precision: null,          aide: "Aide à la production de semences de graminées prairiales", opt: "semCert" },
-  { codes: ["PTC"],                                                                                    precision: "002",         aide: "Aide à la production de pommes de terre féculières" },
-  { codes: ["PRU"],                                                                                    precision: ["001","002"],  aide: "Aide à la production de prunes d'Ente destinées à la transformation" },
-  { codes: ["PWT"],                                                                                    precision: ["001","002"],  aide: "Aide à la production de poires Williams destinées à la transformation" },
-  { codes: ["PVT"],                                                                                    precision: ["001","002"],  aide: "Aide à la production de pêches Pavie destinées à la transformation" },
-  { codes: ["CBT"],                                                                                    precision: ["001","002"],  aide: "Aide à la production de cerises Bigarreau destinées à la transformation" },
-  { codes: ["CHV"],                                                                                    precision: null,          aide: "Aide à la production de chanvre" },
-  // Légumineuses fourragères
+  { codes: ["RIZ"], precision: "001", aide: "Aide à la production de riz" },
+  { codes: ["BDH","BDP"], precision: "001", aide: "Aide à la production de blé dur" },
+  { codes: ["HBL"], precision: null, aide: "Aide à la production de houblon" },
+  { codes: ["TOM"], precision: "001", aide: "Aide à la production de tomates destinées à la transformation" },
+  { codes: ["GRA"], precision: null, aide: "Aide à la production de semences de graminées prairiales", opt: "semCert" },
+  { codes: ["PTC"], precision: "002", aide: "Aide à la production de pommes de terre féculières" },
+  { codes: ["PRU"], precision: ["001","002"], aide: "Aide à la production de prunes d'Ente destinées à la transformation" },
+  { codes: ["PWT"], precision: ["001","002"], aide: "Aide à la production de poires Williams destinées à la transformation" },
+  { codes: ["PVT"], precision: ["001","002"], aide: "Aide à la production de pêches Pavie destinées à la transformation" },
+  { codes: ["CBT"], precision: ["001","002"], aide: "Aide à la production de cerises Bigarreau destinées à la transformation" },
+  { codes: ["CHV"], precision: null, aide: "Aide à la production de chanvre" },
   { codes: ["FVL","FVP","LEC","FNU","LOT","LDH","LDP","LUZ","PHI","PPR","SAI","TRE","VES","GES","PAG","MLF"], precision: "002", aide: "Aide aux légumineuses fourragères" },
-  { codes: ["MLC","MLG"],                                                                              precision: "001",         aide: "Aide aux légumineuses fourragères" },
-  { codes: ["BTA","BTH"],                                                                              precision: "003",         aide: "Aide aux légumineuses fourragères" },
-  // Légumineuses à graines
+  { codes: ["MLC","MLG"], precision: "001", aide: "Aide aux légumineuses fourragères" },
   { codes: ["ARA","FEV","FNU","FVL","FVP","GES","LDH","LDP","LEC","MLF","MPC","PAG","PCH","PHI","PHS","PPR","SAI","SOJ","TRE","VES"], precision: "001", aide: "Aide aux légumineuses à graines" },
-  // Maraîchage
-  { codes: ["AIL","ART","FRA"],                                                                        precision: null,          aide: "Aide au maraîchage" },
-  { codes: ["CAR","MDI"],                                                                              precision: "001",         aide: "Aide au maraîchage" },
-  { codes: ["TOM"],                                                                                    precision: "002",         aide: "Aide au maraîchage" }
+  { codes: ["AIL","ART","FRA"], precision: null, aide: "Aide au maraîchage" },
+  { codes: ["CAR","MDI"], precision: "001", aide: "Aide au maraîchage" },
+  { codes: ["TOM"], precision: "002", aide: "Aide au maraîchage" }
 ];
 
 // ===================================================
-// EXTRACTION À PARTIR DU xmlDoc (DOM — plus fiable que regex)
+// EXTRACTION À PARTIR DU xmlDoc (même logique que parser.js)
 // ===================================================
 function extractParcellesFromDoc(xmlDoc) {
   const NS = 'urn:x-telepac:fr.gouv.agriculture.telepac:echange-producteur';
@@ -48,18 +44,26 @@ function extractParcellesFromDoc(xmlDoc) {
 
       const codeEl = cp.getElementsByTagNameNS(NS, 'code-culture')[0];
       const precEl = cp.getElementsByTagNameNS(NS, 'precision')[0];
-      const saEl   = parc.getElementsByTagNameNS(NS, 'surface-admissible')[0];
+      const saEl = parc.getElementsByTagNameNS(NS, 'surface-admissible')[0];
 
-      const codeCulture       = codeEl ? codeEl.textContent.trim() : '';
-      const precision         = precEl ? precEl.textContent.trim() : '';
-      const surface           = saEl   ? parseFloat(saEl.textContent.trim()) || 0 : 0;
+      const codeCulture = codeEl ? codeEl.textContent.trim() : '';
+      const precision = precEl ? precEl.textContent.trim() : '';
+      const surface = saEl ? parseFloat(saEl.textContent.trim()) || 0 : 0;
       const productionSemences = cp.getAttribute('production-semences') === 'true';
 
       if (codeCulture) {
-        parcelles.push({ ilot: numIlot, parcelle: numParcelle, codeCulture, precision, surface, productionSemences });
+        parcelles.push({ 
+          ilot: numIlot, 
+          parcelle: numParcelle, 
+          codeCulture, 
+          precision, 
+          surface, 
+          productionSemences 
+        });
       }
     }
   }
+  console.log(`Parcelles extraites pour éligibilité : ${parcelles.length}`);
   return parcelles;
 }
 
@@ -85,39 +89,37 @@ function extractRequestedAidesFromDoc(xmlDoc) {
   const eco = p1.getElementsByTagNameNS(NS, 'demande-aide-ecoregime')[0];
   if (eco?.getAttribute('aide-ecoregime') === 'true') aides.push("Écorégime");
 
-  // Aides couplées sur attributs directs de p1
   const COUPLED_ATTRS = [
-    ['ble-dur',             "Aide à la production de blé dur"],
-    ['riz',                 "Aide à la production de riz"],
-    ['houblon',             "Aide à la production de houblon"],
-    ['tomates-industrie',   "Aide à la production de tomates destinées à la transformation"],
-    ['semences-graminees',  "Aide à la production de semences de graminées prairiales"],
+    ['ble-dur', "Aide à la production de blé dur"],
+    ['riz', "Aide à la production de riz"],
+    ['houblon', "Aide à la production de houblon"],
+    ['tomates-industrie', "Aide à la production de tomates destinées à la transformation"],
+    ['semences-graminees', "Aide à la production de semences de graminées prairiales"],
     ['pommes-terre-feculieres', "Aide à la production de pommes de terre féculières"],
-    ['prunes-transformation',   "Aide à la production de prunes d'Ente destinées à la transformation"],
-    ['poires-transformation',   "Aide à la production de poires Williams destinées à la transformation"],
-    ['peches-transformation',   "Aide à la production de pêches Pavie destinées à la transformation"],
-    ['cerises-transformation',  "Aide à la production de cerises Bigarreau destinées à la transformation"],
-    ['chanvre',             "Aide à la production de chanvre"],
-    ['maraichage',          "Aide au maraîchage"],
+    ['prunes-transformation', "Aide à la production de prunes d'Ente destinées à la transformation"],
+    ['poires-transformation', "Aide à la production de poires Williams destinées à la transformation"],
+    ['peches-transformation', "Aide à la production de pêches Pavie destinées à la transformation"],
+    ['cerises-transformation', "Aide à la production de cerises Bigarreau destinées à la transformation"],
+    ['chanvre', "Aide à la production de chanvre"],
+    ['maraichage', "Aide au maraîchage"],
   ];
   for (const [attr, label] of COUPLED_ATTRS) {
     if (p1.getAttribute(attr) === 'true' && !aides.includes(label)) aides.push(label);
   }
 
+  console.log('Aides demandées extraites :', aides);
   return aides;
 }
 
-// ===================================================
-// CALCUL D'ÉLIGIBILITÉ
-// ===================================================
 function getEligibleAides(parcelle) {
   const aides = [];
   for (const rule of ELIGIBILITY_RULES) {
     if (!rule.codes.includes(parcelle.codeCulture)) continue;
     if (rule.precision !== null) {
       const prec = String(parcelle.precision || '');
-      if (Array.isArray(rule.precision)) { if (!rule.precision.includes(prec)) continue; }
-      else if (prec !== rule.precision) continue;
+      if (Array.isArray(rule.precision)) {
+        if (!rule.precision.includes(prec)) continue;
+      } else if (prec !== rule.precision) continue;
     }
     if (rule.opt === 'semCert' && !parcelle.productionSemences) continue;
     if (!aides.includes(rule.aide)) aides.push(rule.aide);
@@ -125,42 +127,47 @@ function getEligibleAides(parcelle) {
   return aides;
 }
 
-// ===================================================
-// RENDU
-// ===================================================
 export function renderEligibilite(xmlDoc) {
-  const noFile  = document.getElementById('elig-no-file');
+  console.log('renderEligibilite appelé, xmlDoc =', xmlDoc ? 'présent' : 'null');
+  
+  const noFile = document.getElementById('elig-no-file');
   const results = document.getElementById('elig-results');
 
   if (!xmlDoc) {
-    if (noFile)  noFile.style.display  = 'block';
+    if (noFile) noFile.style.display = 'block';
     if (results) results.style.display = 'none';
+    console.log('Aucun xmlDoc, affichage du message');
     return;
   }
 
-  const parcelles      = extractParcellesFromDoc(xmlDoc);
+  console.log('Extraction des parcelles...');
+  const parcelles = extractParcellesFromDoc(xmlDoc);
+  console.log(`${parcelles.length} parcelles extraites`);
+  
   const requestedAides = extractRequestedAidesFromDoc(xmlDoc);
+  console.log('Aides demandées:', requestedAides);
 
   const parcellesWithAides = parcelles
     .map(p => ({ ...p, aides: getEligibleAides(p) }))
     .filter(p => p.aides.length > 0);
 
+  console.log(`${parcellesWithAides.length} parcelles éligibles`);
+
   const eligibleAidesSet = new Set();
   for (const p of parcellesWithAides) p.aides.forEach(a => eligibleAidesSet.add(a));
   const eligibleAides = [...eligibleAidesSet];
-  const missingAides  = eligibleAides.filter(a => !requestedAides.includes(a));
+  const missingAides = eligibleAides.filter(a => !requestedAides.includes(a));
 
-  // Afficher résultats
-  if (noFile)  noFile.style.display  = 'none';
+  if (noFile) noFile.style.display = 'none';
   if (results) results.style.display = 'block';
 
-  // KPIs
-  _setText('elig-stat-parcelles',  parcelles.length);
-  _setText('elig-stat-eligibles',  parcellesWithAides.length);
-  _setText('elig-stat-aides-dem',  requestedAides.length);
+  // Mise à jour des KPIs
+  _setText('elig-stat-parcelles', parcelles.length);
+  _setText('elig-stat-eligibles', parcellesWithAides.length);
+  _setText('elig-stat-aides-dem', requestedAides.length);
   _setText('elig-stat-aides-elig', eligibleAides.length);
   _setText('elig-stat-manquantes', missingAides.length);
-  _setText('elig-count-dem',  requestedAides.length);
+  _setText('elig-count-dem', requestedAides.length);
   _setText('elig-count-elig', eligibleAides.length);
   _setText('elig-count-manq', missingAides.length);
 
@@ -176,18 +183,18 @@ export function renderEligibilite(xmlDoc) {
     }
   }
 
-  // Listes comparaison
+  // Listes
   const itemStyle = (cls, icon, txt) =>
     `<div style="background:${cls === 'req' ? '#dbeed4' : cls === 'elig' ? '#e0f0e6' : '#fff3e0'};
       border-left:4px solid ${cls === 'manq' ? '#e6a017' : '#2c6e3c'};
       padding:7px 12px;border-radius:10px;font-size:0.8rem;margin-bottom:6px">${icon} ${txt}</div>`;
 
-  const listDem  = document.getElementById('elig-list-dem');
+  const listDem = document.getElementById('elig-list-dem');
   const listElig = document.getElementById('elig-list-elig');
   const listManq = document.getElementById('elig-list-manq');
 
-  if (listDem)  listDem.innerHTML  = requestedAides.length
-    ? requestedAides.map(a => itemStyle('req',  '📌', a)).join('')
+  if (listDem) listDem.innerHTML = requestedAides.length
+    ? requestedAides.map(a => itemStyle('req', '📌', a)).join('')
     : '<p style="color:#aa6f5e;font-size:0.82rem">Aucune aide spécifique demandée</p>';
 
   if (listElig) listElig.innerHTML = eligibleAides.length
@@ -213,7 +220,7 @@ export function renderEligibilite(xmlDoc) {
     ).join('');
 
     const hasRequested = p.aides.some(a => requestedAides.includes(a));
-    const statusHtml   = hasRequested
+    const statusHtml = hasRequested
       ? `<span style="background:#6c8b5e;color:white;padding:3px 10px;border-radius:40px;font-size:0.7rem;font-weight:600">✅ Demandée</span>`
       : `<span style="background:#e6a017;color:white;padding:3px 10px;border-radius:40px;font-size:0.7rem;font-weight:600">❌ Non demandée</span>`;
 
@@ -227,6 +234,8 @@ export function renderEligibilite(xmlDoc) {
       <td style="text-align:center">${statusHtml}</td>
     </tr>`;
   }).join('');
+  
+  console.log('Rendu éligibilité terminé');
 }
 
 function _setText(id, val) {
