@@ -75,7 +75,7 @@ function renderApp(data) {
   renderAides(lastXmlDoc);
   renderComparaison();
   renderSNA();
-  initMap(ilotsGeo, parcelsGeo, maecGeo);
+  initMap(ilotsGeo, parcelsGeo, maecGeo, snaList);
 }
 
 // ===================================================
