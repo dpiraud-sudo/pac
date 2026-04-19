@@ -9,7 +9,55 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="comparaison_style.css">
+<style>
+  /* ── Panneau SNA dans la carte ── */
+  #map-sna-panel {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #deecda;
+    overflow: hidden;
+  }
+  .sna-panel-header {
+    background: #eef5ea;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #ddecd8;
+    user-select: none;
+  }
+  .sna-panel-header:hover { background: #e3f0dd; }
+  .sna-panel-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #1f5422;
+    flex: 1;
+  }
+  .sna-panel-body {
+    padding: 12px 14px;
+  }
+  .sna-panel-body.collapsed { display: none; }
 
+  /* Catégorie SNA dans le panneau filtres */
+  .sna-filter-cat {
+    margin-bottom: 8px;
+  }
+  .sna-filter-cat:last-child { margin-bottom: 0; }
+
+  /* Layout carte + panneau SNA côte à côte sur grands écrans */
+  #map-and-sna-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 14px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    #map-and-sna-wrapper {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
 </head>
 <body>
 
@@ -68,19 +116,20 @@
     <div class="table-wrap">
       <table id="table-parcelles">
         <thead>
-          <tr><th onclick="window.sortTable?.('ilot_num')" data-col="ilot_num">Îlot ↕</th>
-          <th onclick="window.sortTable?.('num_parcelle')" data-col="num_parcelle">N° Parc. ↕</th>
-          <th onclick="window.sortTable?.('commune')" data-col="commune">Commune ↕</th>
-          <th onclick="window.sortTable?.('code')" data-col="code">Code ↕</th>
-          <th onclick="window.sortTable?.('precision')" data-col="precision">Préc. ↕</th>
-          <th onclick="window.sortTable?.('nom_culture')" data-col="nom_culture">Culture ↕</th>
-          <th onclick="window.sortTable?.('precision_label')" data-col="precision_label">Libellé précision ↕</th>
-          <th onclick="window.sortTable?.('surface_cat')" data-col="surface_cat">Surf. agri. ↕</th>
-          <th onclick="window.sortTable?.('eco')" data-col="eco">Catégorie écorégime ↕</th>
-          <th onclick="window.sortTable?.('area_ha')" data-col="area_ha">Surface calc. (ha) ↕</th>
-          <th onclick="window.sortTable?.('surface_admissible_ha')" data-col="surface_admissible_ha">Surf. adm. (ha) ↕</th>
-          <th onclick="window.sortTable?.('culture_sec')" data-col="culture_sec">Culture sec. ↕</th>
-        </tr>
+          <tr>
+            <th onclick="window.sortTable?.('ilot_num')" data-col="ilot_num">Îlot ↕</th>
+            <th onclick="window.sortTable?.('num_parcelle')" data-col="num_parcelle">N° Parc. ↕</th>
+            <th onclick="window.sortTable?.('commune')" data-col="commune">Commune ↕</th>
+            <th onclick="window.sortTable?.('code')" data-col="code">Code ↕</th>
+            <th onclick="window.sortTable?.('precision')" data-col="precision">Préc. ↕</th>
+            <th onclick="window.sortTable?.('nom_culture')" data-col="nom_culture">Culture ↕</th>
+            <th onclick="window.sortTable?.('precision_label')" data-col="precision_label">Libellé précision ↕</th>
+            <th onclick="window.sortTable?.('surface_cat')" data-col="surface_cat">Surf. agri. ↕</th>
+            <th onclick="window.sortTable?.('eco')" data-col="eco">Catégorie écorégime ↕</th>
+            <th onclick="window.sortTable?.('area_ha')" data-col="area_ha">Surface calc. (ha) ↕</th>
+            <th onclick="window.sortTable?.('surface_admissible_ha')" data-col="surface_admissible_ha">Surf. adm. (ha) ↕</th>
+            <th onclick="window.sortTable?.('culture_sec')" data-col="culture_sec">Culture sec. ↕</th>
+          </tr>
         </thead>
         <tbody id="tbody-parcelles"></tbody>
       </table>
@@ -152,27 +201,62 @@
     <div id="aides-result-area" style="padding:4px 0"></div>
   </div>
 
-  <!-- Onglet Carte -->
+  <!-- ═══════════════════════════════════════════════════
+       Onglet Carte — avec panneau SNA latéral
+       ═══════════════════════════════════════════════════ -->
   <div id="tab-carte" class="tab-content">
     <div id="map-container">
+
+      <!-- Barre d'outils couches principales -->
       <div class="map-toolbar">
-        <div class="layer-control"><strong>🗂️ Couches</strong>
+        <div class="layer-control">
+          <strong>🗂️ Couches</strong>
           <label><input type="checkbox" id="toggleIlots" checked> 🗺️ Îlots PAC</label>
           <label><input type="checkbox" id="toggleParcelles" checked> 🌾 Parcelles culturales</label>
           <label><input type="checkbox" id="toggleMaec" checked> 🌿 MAEC</label>
+          <label style="border-left:1px solid rgba(0,0,0,0.1);padding-left:16px;margin-left:4px">
+            <input type="checkbox" id="toggleSNA" checked> 🏗️ SNA
+          </label>
         </div>
         <div class="stats-badge" id="map-stats">Carte prête</div>
       </div>
-      <div id="map"></div>
-      <div class="map-legend"><strong>🎨 Légende</strong><div id="map-legend-items" class="legend-items">Chargement…</div></div>
+
+      <!-- Carte + panneau filtres SNA -->
+      <div id="map-and-sna-wrapper">
+        <!-- Carte -->
+        <div id="map"></div>
+
+        <!-- Panneau filtres SNA -->
+        <div id="map-sna-panel">
+          <div class="sna-panel-header" onclick="
+            const body = this.nextElementSibling;
+            const icon = this.querySelector('.sna-toggle-icon');
+            const collapsed = body.classList.toggle('collapsed');
+            icon.textContent = collapsed ? '▶' : '▼';
+          ">
+            <span class="sna-panel-title">🏗️ Filtres SNA</span>
+            <span class="sna-toggle-icon" style="color:#557055;font-size:0.8rem">▼</span>
+          </div>
+          <div class="sna-panel-body" id="sna-map-filters">
+            <!-- Rempli dynamiquement par carto.js -->
+            <span style="color:#aaa;font-size:0.8rem">Chargement…</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Légende -->
+      <div class="map-legend">
+        <strong>🎨 Légende</strong>
+        <div id="map-legend-items" class="legend-items">Chargement…</div>
+      </div>
+
     </div>
   </div>
 
   <!-- Onglet Comparaison N-1 / N -->
-    <div id="tab-comparaison" class="tab-content">
-      <div <div id="comp-result-area" style="padding:4px 0"></div>
-    </div>
-
+  <div id="tab-comparaison" class="tab-content">
+    <div id="comp-result-area" style="padding:4px 0"></div>
+  </div>
 
   <!-- Onglet SNA -->
   <div id="tab-sna" class="tab-content">
