@@ -12,7 +12,7 @@ import { renderAides } from './aides.js';
 import { initMap, invalidateMapSize, resetMap } from './carto.js';
 import { setIlotsData, renderIlots } from './ilots.js';
 import { setSNAdata, renderSNA, filterSNA, sortSNA } from './sna.js';
-import { setDocN, renderComparaison, resetComparaison } from './comparaison.js';
+import { setDocN, renderComparaison, resetComparaison, setIlotsN } from './comparaison.js';
 import { renderEligibilite } from './eligibilite.js';
 
 // ===================================================
@@ -37,15 +37,15 @@ function renderApp(data) {
   parcelsGeo  = data.parcelsGeo;
   maecGeo     = data.maecGeo;
   lastXmlDoc  = data.xmlDoc;
-  // Dans main.js, dans renderApp
   snaList = data.snaGeo || [];
   console.log('SNA reçus dans main.js :', snaList);
-  setSNAdata(snaList); 
+  setSNAdata(snaList);
 
   setData(allRows);
   setEcoData(allRows);
   setMaecData(allMaecRows);
   setIlotsData(allRows);
+  setIlotsN(allRows);        // ← transmet les rows N à comparaison.js
   setSNAdata(snaList);
   setDocN(lastXmlDoc);
 

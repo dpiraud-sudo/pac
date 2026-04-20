@@ -1,13 +1,14 @@
 // js/comparaison.js
 import { extractAidesFromDoc } from './aides.js';
+import { parseXML } from './parser.js';
 import { escHtml } from './utils.js';
 
 let docN  = null;
 let docN1 = null;
 
-// Données d'îlots (issues de ilots.js via setIlotsData)
-let ilotsN  = [];   // îlots campagne N (en cours)
-let ilotsN1 = [];   // îlots campagne N-1
+// Données d'îlots — alimentées depuis l'extérieur
+let ilotsN  = [];   // rows campagne N  (chargées via setIlotsN depuis main.js)
+let ilotsN1 = [];   // rows campagne N-1 (extraites à la lecture du fichier N-1)
 
 // Flag pour éviter de binder les événements deux fois
 let delegationBound = false;
@@ -50,7 +51,6 @@ const AIDES_LABELS = {
   "assurance-recolte":       "Assurance récolte"
 };
 
-// Mapping pour les labels ISN
 const ISN_LABELS = {
   "interlocuteur-agree-ISN": "Interlocuteur agréé ISN",
   "autorisation-transmission-donnees-interlocuteur-ISN": "Autorisation transmission données interlocuteur ISN",
@@ -66,14 +66,9 @@ export function setDocN(xmlDoc) {
   docN = xmlDoc;
 }
 
-/** Appeler avec les rows issues de setIlotsData() pour la campagne N */
+/** Appeler avec data.rows issu de parseXML() pour la campagne N, depuis main.js */
 export function setIlotsN(rows) {
   ilotsN = Array.isArray(rows) ? rows : [];
-}
-
-/** Appeler avec les rows issues de setIlotsData() pour la campagne N-1 */
-export function setIlotsN1(rows) {
-  ilotsN1 = Array.isArray(rows) ? rows : [];
 }
 
 export function resetComparaison() {
@@ -93,16 +88,13 @@ export function renderComparaison() {
     return;
   }
 
-  // Injecter le HTML de layout
   area.innerHTML = buildLayout();
 
-  // Binder la délégation d'événements UNE SEULE FOIS sur la zone stable
   if (!delegationBound) {
     bindDelegatedEvents(area);
     delegationBound = true;
   }
 
-  // Si N-1 déjà chargé (re-render après changement de fichier), afficher le tableau
   if (docN1) renderTable(area);
 }
 
@@ -110,7 +102,7 @@ export function renderComparaison() {
 // LAYOUT
 // ===================================================
 function buildLayout() {
-  const dN   = extractAidesFromDoc(docN);
+  const dN    = extractAidesFromDoc(docN);
   const campN = dN.campagne || 'N';
 
   const n1Block = docN1
@@ -156,11 +148,9 @@ function buildLayout() {
 }
 
 // ===================================================
-// DÉLÉGATION D'ÉVÉNEMENTS — bindée une seule fois
-// sur l'élément stable #comp-result-area
+// DÉLÉGATION D'ÉVÉNEMENTS
 // ===================================================
 function bindDelegatedEvents(root) {
-  // Clic sur le bouton "Choisir le fichier N-1"
   root.addEventListener('click', (e) => {
     if (e.target.closest('#comp-upload-btn')) {
       e.stopPropagation();
@@ -171,7 +161,6 @@ function bindDelegatedEvents(root) {
       openFilePicker(root);
       return;
     }
-    // Clic sur la drop-zone elle-même (pas sur le bouton)
     const dz = e.target.closest('#comp-drop-zone');
     if (dz && !e.target.closest('#comp-upload-btn')) {
       openFilePicker(root);
@@ -179,7 +168,6 @@ function bindDelegatedEvents(root) {
     }
   });
 
-  // Drag & drop
   root.addEventListener('dragover', (e) => {
     const dz = e.target.closest('#comp-drop-zone');
     if (dz) { e.preventDefault(); dz.classList.add('drag-over'); }
@@ -199,7 +187,6 @@ function bindDelegatedEvents(root) {
     if (f) loadN1(f, root);
   });
 
-  // Changement sur l'input file (délégué via root, car l'input est recréé à chaque render)
   root.addEventListener('change', (e) => {
     if (e.target.id === 'comp-file-input') {
       const f = e.target.files[0];
@@ -209,7 +196,6 @@ function bindDelegatedEvents(root) {
 }
 
 function openFilePicker(root) {
-  // L'input file est dans le DOM de root, toujours présent
   const fi = root.querySelector('#comp-file-input');
   if (fi) { fi.value = ''; fi.click(); }
 }
@@ -225,12 +211,22 @@ function loadN1(file, root) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
+      // Parse du XML pour les aides (extractAidesFromDoc)
       const parser = new DOMParser();
       const doc = parser.parseFromString(e.target.result, 'application/xml');
       if (doc.querySelector('parsererror')) throw new Error('Fichier XML invalide');
       docN1 = doc;
-      // Re-injecter le layout (pour mettre à jour le bandeau N-1)
-      // puis re-binder si besoin et afficher le tableau
+
+      // Extraction des rows N-1 via parseXML (même parseur que main.js)
+      // pour obtenir les champs ilot_num, ilot_ref, area_ha, surface_admissible_ha
+      try {
+        const dataN1 = parseXML(e.target.result);
+        ilotsN1 = Array.isArray(dataN1.rows) ? dataN1.rows : [];
+      } catch (parseErr) {
+        console.warn('Impossible d\'extraire les îlots N-1 :', parseErr);
+        ilotsN1 = [];
+      }
+
       const area = document.getElementById('comp-result-area');
       if (!area) return;
       area.innerHTML = buildLayout();
@@ -267,35 +263,27 @@ function renderTable(root) {
   // ── Assureur ──────────────────────────────────────
   if (dN.assureur || dN1.assureur) {
     html += section('🏢 Assurance récolte', [
-      row('Nom de l\'assureur',
-        dN1.assureur || '—',
-        dN.assureur || '—',
-        'text'),
+      row('Nom de l\'assureur', dN1.assureur || '—', dN.assureur || '—', 'text'),
     ]);
   }
 
-  // ── Questions ISN (Installation des jeunes agriculteurs) ──
+  // ── Questions ISN ──────────────────────────────────
   const isnFields = [
-    { key: 'interlocuteur-agree-ISN', label: 'Interlocuteur agréé ISN' },
-    { key: 'autorisation-transmission-donnees-interlocuteur-ISN', label: 'Autorisation transmission données interlocuteur ISN' },
-    { key: 'renonciation-ISN', label: 'Renonciation ISN' },
-    { key: 'transmission-donnees-fins-commerciales', label: 'Transmission données fins commerciales' },
-    { key: 'autorisation-transmission-donnees', label: 'Autorisation transmission données' }
+    { key: 'interlocuteur-agree-ISN',                              label: 'Interlocuteur agréé ISN' },
+    { key: 'autorisation-transmission-donnees-interlocuteur-ISN',  label: 'Autorisation transmission données interlocuteur ISN' },
+    { key: 'renonciation-ISN',                                     label: 'Renonciation ISN' },
+    { key: 'transmission-donnees-fins-commerciales',               label: 'Transmission données fins commerciales' },
+    { key: 'autorisation-transmission-donnees',                    label: 'Autorisation transmission données' }
   ];
-
   const isnRows = [];
   for (const field of isnFields) {
     const valN1 = dN1[field.key];
-    const valN = dN[field.key];
-    // Afficher la ligne si la valeur existe dans au moins un des deux fichiers
+    const valN  = dN[field.key];
     if (valN !== undefined || valN1 !== undefined) {
       isnRows.push(row(field.label, valN1, valN, 'bool'));
     }
   }
-
-  if (isnRows.length > 0) {
-    html += section('👨‍🌾 ISN (Interlocuteur agréé ISN)', isnRows);
-  }
+  if (isnRows.length > 0) html += section('👨‍🌾 ISN (Interlocuteur agréé ISN)', isnRows);
 
   // ── Pilier 1 ──────────────────────────────────────
   const p1Keys = [
@@ -308,25 +296,15 @@ function renderTable(root) {
   const p1Rows = p1Keys
     .filter(k => dN[k] !== undefined || dN1[k] !== undefined)
     .map(k => row(AIDES_LABELS[k] || k, dN1[k], dN[k], 'bool'));
-
   if (p1Rows.length)
     html += section('🟢 PILIER 1 – Aides découplées & couplées', p1Rows);
 
   // ── Écorégime détail ──────────────────────────────
   if (dN['eco-regime'] === 'true' || dN1['eco-regime'] === 'true') {
     html += section('🌱 Détail Écorégime', [
-      row('Voie',
-        voieLabel(dN1['voie-ecoregime']),
-        voieLabel(dN['voie-ecoregime']),
-        'text'),
-      row('Certification',
-        dN1['certification'] || '—',
-        dN['certification']  || '—',
-        'text'),
-      row('Bonus Haie',
-        dN1['bonus-haie'] ?? 'false',
-        dN['bonus-haie']  ?? 'false',
-        'bool'),
+      row('Voie',          voieLabel(dN1['voie-ecoregime']), voieLabel(dN['voie-ecoregime']), 'text'),
+      row('Certification', dN1['certification'] || '—',      dN['certification']  || '—',     'text'),
+      row('Bonus Haie',    dN1['bonus-haie'] ?? 'false',     dN['bonus-haie']  ?? 'false',    'bool'),
     ]);
   }
 
@@ -335,7 +313,6 @@ function renderTable(root) {
   const p2Rows = p2Keys
     .filter(k => dN[k] !== undefined || dN1[k] !== undefined)
     .map(k => row(AIDES_LABELS[k] || k, dN1[k], dN[k], 'bool'));
-
   if (p2Rows.length)
     html += section('🚜 PILIER 2 – Développement rural', p2Rows);
 
@@ -349,21 +326,19 @@ function renderTable(root) {
   html += section('🐄 Effectifs animaux', animRows);
 
   // ── Surfaces globales du dossier ──────────────────
-  const totN1sg  = ilotsN1.reduce((s, r) => s + (r.area_ha               || 0), 0);
-  const totN1sa  = ilotsN1.reduce((s, r) => s + (r.surface_admissible_ha || 0), 0);
-  const totNsg   = ilotsN.reduce( (s, r) => s + (r.area_ha               || 0), 0);
-  const totNsa   = ilotsN.reduce( (s, r) => s + (r.surface_admissible_ha || 0), 0);
-
-  const fmtSurf = (v, rows) => rows.length > 0 ? v : '—';
+  const totN1sg = ilotsN1.reduce((s, r) => s + (r.area_ha               || 0), 0);
+  const totN1sa = ilotsN1.reduce((s, r) => s + (r.surface_admissible_ha || 0), 0);
+  const totNsg  = ilotsN.reduce( (s, r) => s + (r.area_ha               || 0), 0);
+  const totNsa  = ilotsN.reduce( (s, r) => s + (r.surface_admissible_ha || 0), 0);
 
   html += section('🗺️ Surfaces globales du dossier', [
     row('Surface graphique totale (ha)',
-      fmtSurf(totN1sg, ilotsN1),
-      fmtSurf(totNsg,  ilotsN),
+      ilotsN1.length > 0 ? totN1sg : '—',
+      ilotsN.length  > 0 ? totNsg  : '—',
       'surface'),
     row('Surface admissible globale (ha)',
-      fmtSurf(totN1sa, ilotsN1),
-      fmtSurf(totNsa,  ilotsN),
+      ilotsN1.length > 0 ? totN1sa : '—',
+      ilotsN.length  > 0 ? totNsa  : '—',
       'surface'),
   ]);
 
@@ -371,6 +346,88 @@ function renderTable(root) {
   html += buildIlotsComparaison();
 
   tableArea.innerHTML = html;
+}
+
+// ===================================================
+// COMPARAISON PAR ÎLOT
+// ===================================================
+
+/**
+ * Agrège les parcelles par îlot (ilot_num + ilot_ref).
+ * Retourne une Map clé → { ilotNum, ilotRef, surfaceGraphique, surfaceAdmissible }
+ */
+function aggregateIlots(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    const num = String(r.ilot_num ?? '?');
+    const ref = String(r.ilot_ref ?? '—');
+    const key = `${num}|${ref}`;
+    if (!map.has(key)) {
+      map.set(key, { ilotNum: num, ilotRef: ref, surfaceGraphique: 0, surfaceAdmissible: 0 });
+    }
+    const entry = map.get(key);
+    entry.surfaceGraphique  += r.area_ha               || 0;
+    entry.surfaceAdmissible += r.surface_admissible_ha || 0;
+  }
+  return map;
+}
+
+function buildIlotsComparaison() {
+  const mapN  = aggregateIlots(ilotsN);
+  const mapN1 = aggregateIlots(ilotsN1);
+
+  if (mapN.size === 0 && mapN1.size === 0) return '';
+
+  // Union des clés, triée par numéro d'îlot (numérique)
+  const allKeys = [...new Set([...mapN1.keys(), ...mapN.keys()])].sort((a, b) => {
+    const numA = parseInt(a.split('|')[0], 10) || 0;
+    const numB = parseInt(b.split('|')[0], 10) || 0;
+    return numA - numB;
+  });
+
+  let html = `<div class="comp-section"><div class="comp-section-title">🌾 Comparaison par îlot</div>`;
+
+  for (const key of allKeys) {
+    const iN  = mapN.get(key)  || {};
+    const iN1 = mapN1.get(key) || {};
+    const [numIlot, numRef] = key.split('|');
+
+    const isNew     = !mapN1.has(key) && mapN.has(key);
+    const isRemoved =  mapN1.has(key) && !mapN.has(key);
+    const statusBadge = isNew
+      ? `<span class="comp-ilot-badge comp-ilot-new">✚ Nouvel îlot</span>`
+      : isRemoved
+        ? `<span class="comp-ilot-badge comp-ilot-removed">✖ Îlot supprimé</span>`
+        : '';
+
+    // Si l'îlot est absent d'un côté, on passe '—' (pas 0)
+    const sgN1 = mapN1.has(key) ? iN1.surfaceGraphique  : '—';
+    const sgN  = mapN.has(key)  ? iN.surfaceGraphique   : '—';
+    const saN1 = mapN1.has(key) ? iN1.surfaceAdmissible : '—';
+    const saN  = mapN.has(key)  ? iN.surfaceAdmissible  : '—';
+
+    html += `
+      <div class="comp-ilot-block">
+        <div class="comp-ilot-header">
+          <span class="comp-ilot-title">Îlot n° ${escHtml(numIlot)}</span>
+          <span class="comp-ilot-ref">Réf. ${escHtml(numRef)}</span>
+          ${statusBadge}
+        </div>
+        <div class="comp-section-body">
+          <div class="comp-row comp-row-head">
+            <div class="comp-cell comp-label-col">Élément</div>
+            <div class="comp-cell comp-n1-col">N-1</div>
+            <div class="comp-cell comp-n-col">N (en cours)</div>
+            <div class="comp-cell comp-diff-col">Évolution</div>
+          </div>
+          ${row('Surface graphique (ha)',  sgN1, sgN,  'surface')}
+          ${row('Surface admissible (ha)', saN1, saN,  'surface')}
+        </div>
+      </div>`;
+  }
+
+  html += `</div>`;
+  return html;
 }
 
 // ===================================================
@@ -401,41 +458,28 @@ function section(title, rowsHtml) {
 }
 
 function row(label, valN1, valN, type) {
-  // Convertir les valeurs booléennes string en true/french lisible
-  let processedValN1 = valN1;
-  let processedValN = valN;
-  
-  if (type === 'bool') {
-    if (valN1 === 'true') processedValN1 = 'true';
-    if (valN1 === 'false') processedValN1 = 'false';
-    if (valN === 'true') processedValN = 'true';
-    if (valN === 'false') processedValN = 'false';
-  }
-  
-  const n1 = (processedValN1 !== undefined && processedValN1 !== null && processedValN1 !== '') ? String(processedValN1) : '—';
-  const n  = (processedValN !== undefined && processedValN !== null && processedValN !== '') ? String(processedValN) : '—';
+  const n1 = (valN1 !== undefined && valN1 !== null && valN1 !== '') ? String(valN1) : '—';
+  const n  = (valN  !== undefined && valN  !== null && valN  !== '') ? String(valN)  : '—';
   const changed = n1 !== n;
 
   let diffHtml;
   if (!changed) {
     diffHtml = `<span class="comp-diff-same">= Inchangé</span>`;
   } else if (type === 'bool') {
-    if (n1 === 'false' && n === 'true')  diffHtml = `<span class="comp-diff-up">▲ Activé</span>`;
+    if (n1 === 'false' && n === 'true')      diffHtml = `<span class="comp-diff-up">▲ Activé</span>`;
     else if (n1 === 'true' && n === 'false') diffHtml = `<span class="comp-diff-down">▼ Désactivé</span>`;
-    else diffHtml = `<span class="comp-diff-changed">↔ Modifié</span>`;
+    else                                     diffHtml = `<span class="comp-diff-changed">↔ Modifié</span>`;
   } else if (type === 'number' || type === 'surface') {
     const numN1 = parseFloat(String(n1).replace(',', '.'));
     const numN  = parseFloat(String(n).replace(',', '.'));
     if (!isNaN(numN1) && !isNaN(numN)) {
-      const delta = +(numN - numN1).toFixed(4);
-      const isSurface = (type === 'surface');
-      const deltaStr = isSurface
-        ? (delta > 0 ? `+${delta.toFixed(4)} ha` : `${delta.toFixed(4)} ha`)
-        : (delta > 0 ? `+${delta}` : `${delta}`);
+      const delta  = +(numN - numN1).toFixed(4);
+      const sign   = delta > 0 ? '+' : '';
+      const dStr   = type === 'surface' ? `${sign}${delta.toFixed(4)} ha` : `${sign}${delta}`;
       diffHtml = delta > 0
-        ? `<span class="comp-diff-up">▲ ${deltaStr}</span>`
+        ? `<span class="comp-diff-up">▲ ${dStr}</span>`
         : delta < 0
-          ? `<span class="comp-diff-down">▼ ${deltaStr}</span>`
+          ? `<span class="comp-diff-down">▼ ${dStr}</span>`
           : `<span class="comp-diff-same">= Inchangé</span>`;
     } else {
       diffHtml = `<span class="comp-diff-changed">↔ Modifié</span>`;
@@ -461,93 +505,11 @@ function renderVal(val, type) {
   }
   if (type === 'surface') {
     const num = parseFloat(String(val).replace(',', '.'));
-    const formatted = isNaN(num) ? val : num.toFixed(4) + ' ha';
-    return `<span class="comp-val-text">${escHtml(formatted)}</span>`;
+    return isNaN(num)
+      ? `<span class="comp-val-text">${escHtml(val)}</span>`
+      : `<span class="comp-val-text">${num.toFixed(4).replace('.', ',')} ha</span>`;
   }
   return `<span class="comp-val-text">${escHtml(val)}</span>`;
-}
-
-// ===================================================
-// COMPARAISON PAR ÎLOT
-// ===================================================
-/**
- * Agrège les parcelles par îlot (ilot_num + ilot_ref) et retourne une Map.
- * Chaque entrée : { ilotNum, ilotRef, surfaceGraphique, surfaceAdmissible }
- */
-function aggregateIlots(rows) {
-  const map = new Map();
-  for (const r of rows) {
-    const num = String(r.ilot_num ?? '?');
-    const ref = String(r.ilot_ref ?? '—');
-    const key = `${num}|${ref}`;
-    if (!map.has(key)) {
-      map.set(key, { ilotNum: num, ilotRef: ref, surfaceGraphique: 0, surfaceAdmissible: 0 });
-    }
-    const entry = map.get(key);
-    entry.surfaceGraphique  += r.area_ha               || 0;
-    entry.surfaceAdmissible += r.surface_admissible_ha || 0;
-  }
-  return map;
-}
-
-function buildIlotsComparaison() {
-  const mapN  = aggregateIlots(ilotsN);
-  const mapN1 = aggregateIlots(ilotsN1);
-
-  if (mapN.size === 0 && mapN1.size === 0) return '';
-
-  // Union des clés, triée par numéro d'îlot
-  const allKeys = [...new Set([...mapN1.keys(), ...mapN.keys()])].sort((a, b) => {
-    const numA = parseInt(a.split('|')[0], 10) || 0;
-    const numB = parseInt(b.split('|')[0], 10) || 0;
-    return numA - numB;
-  });
-
-  let html = `
-    <div class="comp-section">
-      <div class="comp-section-title">🌾 Comparaison par îlot</div>`;
-
-  for (const key of allKeys) {
-    const iN  = mapN.get(key)  || {};
-    const iN1 = mapN1.get(key) || {};
-
-    const [numIlot, numRef] = key.split('|');
-
-    const isNew     = !mapN1.has(key) && mapN.has(key);
-    const isRemoved =  mapN1.has(key) && !mapN.has(key);
-    const statusBadge = isNew
-      ? `<span class="comp-ilot-badge comp-ilot-new">✚ Nouvel îlot</span>`
-      : isRemoved
-        ? `<span class="comp-ilot-badge comp-ilot-removed">✖ Îlot supprimé</span>`
-        : '';
-
-    const sgN1  = iN1.surfaceGraphique  ?? null;
-    const sgN   = iN.surfaceGraphique   ?? null;
-    const saN1  = iN1.surfaceAdmissible ?? null;
-    const saN   = iN.surfaceAdmissible  ?? null;
-
-    html += `
-      <div class="comp-ilot-block">
-        <div class="comp-ilot-header">
-          <span class="comp-ilot-title">Îlot n° ${escHtml(numIlot)}</span>
-          <span class="comp-ilot-ref">Réf. ${escHtml(numRef)}</span>
-          ${statusBadge}
-        </div>
-        <div class="comp-section-body">
-          <div class="comp-row comp-row-head">
-            <div class="comp-cell comp-label-col">Élément</div>
-            <div class="comp-cell comp-n1-col">N-1</div>
-            <div class="comp-cell comp-n-col">N (en cours)</div>
-            <div class="comp-cell comp-diff-col">Évolution</div>
-          </div>
-          ${row('Surface graphique (ha)',  sgN1 !== null ? sgN1 : '—', sgN !== null ? sgN : '—', 'surface')}
-          ${row('Surface admissible (ha)', saN1 !== null ? saN1 : '—', saN !== null ? saN : '—', 'surface')}
-        </div>
-      </div>`;
-  }
-
-  html += `</div>`;
-  return html;
 }
 
 function emptyState(icon, msg) {
