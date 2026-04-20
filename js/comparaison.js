@@ -5,6 +5,10 @@ import { escHtml } from './utils.js';
 let docN  = null;
 let docN1 = null;
 
+// Données d'îlots (issues de ilots.js via setIlotsData)
+let ilotsN  = [];   // îlots campagne N (en cours)
+let ilotsN1 = [];   // îlots campagne N-1
+
 // Flag pour éviter de binder les événements deux fois
 let delegationBound = false;
 
@@ -62,9 +66,21 @@ export function setDocN(xmlDoc) {
   docN = xmlDoc;
 }
 
+/** Appeler avec les rows issues de setIlotsData() pour la campagne N */
+export function setIlotsN(rows) {
+  ilotsN = Array.isArray(rows) ? rows : [];
+}
+
+/** Appeler avec les rows issues de setIlotsData() pour la campagne N-1 */
+export function setIlotsN1(rows) {
+  ilotsN1 = Array.isArray(rows) ? rows : [];
+}
+
 export function resetComparaison() {
   docN  = null;
   docN1 = null;
+  ilotsN  = [];
+  ilotsN1 = [];
   delegationBound = false;
 }
 
@@ -333,19 +349,26 @@ function renderTable(root) {
   html += section('🐄 Effectifs animaux', animRows);
 
   // ── Surfaces globales du dossier ──────────────────
+  const totN1sg  = ilotsN1.reduce((s, r) => s + (r.area_ha               || 0), 0);
+  const totN1sa  = ilotsN1.reduce((s, r) => s + (r.surface_admissible_ha || 0), 0);
+  const totNsg   = ilotsN.reduce( (s, r) => s + (r.area_ha               || 0), 0);
+  const totNsa   = ilotsN.reduce( (s, r) => s + (r.surface_admissible_ha || 0), 0);
+
+  const fmtSurf = (v, rows) => rows.length > 0 ? v : '—';
+
   html += section('🗺️ Surfaces globales du dossier', [
     row('Surface graphique totale (ha)',
-      dN1.surfaceGraphique   ?? '—',
-      dN.surfaceGraphique    ?? '—',
+      fmtSurf(totN1sg, ilotsN1),
+      fmtSurf(totNsg,  ilotsN),
       'surface'),
     row('Surface admissible globale (ha)',
-      dN1.surfaceAdmissible  ?? '—',
-      dN.surfaceAdmissible   ?? '—',
+      fmtSurf(totN1sa, ilotsN1),
+      fmtSurf(totNsa,  ilotsN),
       'surface'),
   ]);
 
   // ── Comparaison par îlot ──────────────────────────
-  html += buildIlotsComparaison(dN1, dN);
+  html += buildIlotsComparaison();
 
   tableArea.innerHTML = html;
 }
@@ -448,23 +471,30 @@ function renderVal(val, type) {
 // COMPARAISON PAR ÎLOT
 // ===================================================
 /**
- * Construit la section de comparaison par îlot.
- * Attend que dN.ilots / dN1.ilots soit un tableau d'objets de la forme :
- *   { numeroIlot, numeroReference, surfaceGraphique, surfaceAdmissible, ...autresChamps }
- * La clé de jointure est : numeroIlot + '|' + numeroReference
+ * Agrège les parcelles par îlot (ilot_num + ilot_ref) et retourne une Map.
+ * Chaque entrée : { ilotNum, ilotRef, surfaceGraphique, surfaceAdmissible }
  */
-function buildIlotsComparaison(dN1, dN) {
-  const ilotsN  = Array.isArray(dN.ilots)  ? dN.ilots  : [];
-  const ilotsN1 = Array.isArray(dN1.ilots) ? dN1.ilots : [];
+function aggregateIlots(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    const num = String(r.ilot_num ?? '?');
+    const ref = String(r.ilot_ref ?? '—');
+    const key = `${num}|${ref}`;
+    if (!map.has(key)) {
+      map.set(key, { ilotNum: num, ilotRef: ref, surfaceGraphique: 0, surfaceAdmissible: 0 });
+    }
+    const entry = map.get(key);
+    entry.surfaceGraphique  += r.area_ha               || 0;
+    entry.surfaceAdmissible += r.surface_admissible_ha || 0;
+  }
+  return map;
+}
 
-  if (ilotsN.length === 0 && ilotsN1.length === 0) return '';
+function buildIlotsComparaison() {
+  const mapN  = aggregateIlots(ilotsN);
+  const mapN1 = aggregateIlots(ilotsN1);
 
-  // Indexer par clé composite numéro d'îlot + référence
-  const keyOf = (ilot) =>
-    `${ilot.numeroIlot ?? ilot.numIlot ?? ilot.ilotNum ?? '?'}|${ilot.numeroReference ?? ilot.refIlot ?? ilot.numRef ?? '?'}`;
-
-  const mapN  = new Map(ilotsN.map(i  => [keyOf(i),  i]));
-  const mapN1 = new Map(ilotsN1.map(i => [keyOf(i), i]));
+  if (mapN.size === 0 && mapN1.size === 0) return '';
 
   // Union des clés, triée par numéro d'îlot
   const allKeys = [...new Set([...mapN1.keys(), ...mapN.keys()])].sort((a, b) => {
@@ -472,8 +502,6 @@ function buildIlotsComparaison(dN1, dN) {
     const numB = parseInt(b.split('|')[0], 10) || 0;
     return numA - numB;
   });
-
-  if (allKeys.length === 0) return '';
 
   let html = `
     <div class="comp-section">
@@ -485,14 +513,18 @@ function buildIlotsComparaison(dN1, dN) {
 
     const [numIlot, numRef] = key.split('|');
 
-    // Badge de statut de l'îlot
     const isNew     = !mapN1.has(key) && mapN.has(key);
-    const isRemoved = mapN1.has(key)  && !mapN.has(key);
+    const isRemoved =  mapN1.has(key) && !mapN.has(key);
     const statusBadge = isNew
       ? `<span class="comp-ilot-badge comp-ilot-new">✚ Nouvel îlot</span>`
       : isRemoved
         ? `<span class="comp-ilot-badge comp-ilot-removed">✖ Îlot supprimé</span>`
         : '';
+
+    const sgN1  = iN1.surfaceGraphique  ?? null;
+    const sgN   = iN.surfaceGraphique   ?? null;
+    const saN1  = iN1.surfaceAdmissible ?? null;
+    const saN   = iN.surfaceAdmissible  ?? null;
 
     html += `
       <div class="comp-ilot-block">
@@ -508,10 +540,8 @@ function buildIlotsComparaison(dN1, dN) {
             <div class="comp-cell comp-n-col">N (en cours)</div>
             <div class="comp-cell comp-diff-col">Évolution</div>
           </div>
-          ${row('Numéro d\'îlot',       iN1.numeroIlot        ?? iN1.numIlot    ?? '—', iN.numeroIlot        ?? iN.numIlot    ?? '—', 'text')}
-          ${row('Numéro de référence',  iN1.numeroReference   ?? iN1.refIlot    ?? '—', iN.numeroReference   ?? iN.refIlot    ?? '—', 'text')}
-          ${row('Surface graphique (ha)',  iN1.surfaceGraphique  ?? '—', iN.surfaceGraphique  ?? '—', 'surface')}
-          ${row('Surface admissible (ha)', iN1.surfaceAdmissible ?? '—', iN.surfaceAdmissible ?? '—', 'surface')}
+          ${row('Surface graphique (ha)',  sgN1 !== null ? sgN1 : '—', sgN !== null ? sgN : '—', 'surface')}
+          ${row('Surface admissible (ha)', saN1 !== null ? saN1 : '—', saN !== null ? saN : '—', 'surface')}
         </div>
       </div>`;
   }
