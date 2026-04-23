@@ -401,6 +401,7 @@ function _updateBioCard(percent, totalHa, bioHa) {
     
     if (percentEl) percentEl.textContent = `${percent.toFixed(1).replace('.', ',')} %`;
     if (barEl) barEl.style.width = `${Math.min(percent, 100)}%`;
+    // ⬇️ CORRECTION ICI : afficher "SAU" au lieu de "TA"
     if (detailEl) detailEl.textContent = `${bioHa.toFixed(2).replace('.', ',')} / ${totalHa.toFixed(2).replace('.', ',')} ha SAU`;
     
     if (statusEl) {
