@@ -1,8 +1,5 @@
 // js/bcae7.js - Analyse BCAE7 Diversité des cultures
-// Version conforme à l'annexe 2 (règles d'exemption)
-// Notice PAC 2026
-
-import { lookup } from './data.js';
+// Version complète conforme à la notice PAC 2026
 
 let allRows = [];
 
@@ -80,31 +77,23 @@ const PPAM_CODES = new Set([
 // SURFACES PRISES EN COMPTE POUR L'EXEMPTION A (75% TA en herbe/légumineuses/jachère)
 // Annexe 2 - Section A
 // ===================================================
-// Légumineuses de la liste 1.3 (toutes)
 const LEGUMINEUSES_CODES = new Set([
     "ARA", "FEV", "FNU", "FVL", "FVP", "GES", "LEC", "LDH", "LDP", "LOT",
     "LUZ", "PCH", "PHI", "PPR", "PHS", "SAI", "SOJ", "TRE", "VES", "PAG", "MLF"
 ]);
 
-// Surfaces herbacées temporaires et mélanges (liste 1.5)
 const HERBACEOUS_TEMPORARY_CODES = new Set([
-    "MLG",  // Mélange légumineuses prépond. + graminées fourragères ≤5 ans
-    "PTR",  // Prairie temporaire ≤5 ans et autre mélange avec graminées
-    "GRA",  // Graminée pure pour gazon/semences certifiées
-    "JAC"   // Jachère (terre arable)
+    "MLG", "PTR", "GRA", "JAC"
 ]);
 
 // ===================================================
 // SURFACES PRISES EN COMPTE POUR L'EXEMPTION B (75% SAU en prairies)
 // Annexe 2 - Section B
 // ===================================================
-// Prairies et pâturages permanents (liste 1.6)
 const PERMANENT_GRASSLAND_CODES = new Set([
     "PPH", "SPH", "SPL", "CAE", "CEE"
 ]);
 
-// Surfaces herbacées temporaires (liste 1.5) - mêmes que ci-dessus
-// Riz (cultures sous eau)
 const RIZ_CODE = "RIZ";
 
 // ===================================================
@@ -134,42 +123,27 @@ function getBCAE7GroupLabel(code) {
     return `Autre (${code})`;
 }
 
-// Vérifie si une parcelle est sur Prairie permanente (exclue de l'analyse diversification)
 function isPermanentGrassland(row) {
     return row.surface_cat === 'PP' || PERMANENT_GRASSLAND_CODES.has(row.code);
 }
 
-// Vérifie si une parcelle est sur Terre arable (incluse dans l'analyse diversification)
 function isArableLand(row) {
     const isTA = row.surface_cat === 'TA';
     const isCPasTA = row.eco === 'CP gérée comme une TA - Autres cultures';
     return isTA || isCPasTA;
 }
 
-// ===================================================
-// CRITÈRE A : Plus de 75% des TA en herbe/légumineuses/jachère
-// Annexe 2 - Section A
-// ===================================================
 function isExemptionACover(row) {
     const code = row.code;
-    // Légumineuses liste 1.3
     if (LEGUMINEUSES_CODES.has(code)) return true;
-    // Surfaces herbacées temporaires liste 1.5
     if (HERBACEOUS_TEMPORARY_CODES.has(code)) return true;
     return false;
 }
 
-// ===================================================
-// CRITÈRE B : Plus de 75% de la SAU en prairies (permanentes + temporaires) + riz
-// Annexe 2 - Section B
-// ===================================================
 function isExemptionBCover(row) {
     const code = row.code;
-    // Prairies permanentes liste 1.6
     if (PERMANENT_GRASSLAND_CODES.has(code)) return true;
-    // Surfaces herbacées temporaires liste 1.5
     if (HERBACEOUS_TEMPORARY_CODES.has(code)) return true;
-    // Riz
     if (code === RIZ_CODE) return true;
     return false;
 }
@@ -177,7 +151,7 @@ function isExemptionBCover(row) {
 // ===================================================
 // ANALYSE DE DIVERSIFICATION BCAE7
 // ===================================================
-function analyzeDiversification(taCultures) {
+function analyzeDiversification(taCultures, taHa) {
     if (taCultures.length === 0) {
         return { conform: false, reason: "Aucune Terre arable", cultures: [] };
     }
@@ -194,22 +168,48 @@ function analyzeDiversification(taCultures) {
     const secondPct = nbCultures >= 2 ? (sorted[1]?.surfaceHa / totalHa * 100) : 0;
     const top2Pct = mainPct + secondPct;
     
-    // Règle BCAE7 : au moins 3 cultures différentes
-    const hasEnoughCultures = nbCultures >= 3;
-    const mainOk = mainPct <= 75;
-    const top2Ok = top2Pct <= 95;
+    let requiredCultures = 0;
+    let mainMaxPct = 75;
+    let top2MaxPct = 95;
+    let ruleDescription = "";
+    
+    if (taHa < 10) {
+        requiredCultures = 0;
+        ruleDescription = "TA < 10 ha → Exemption (non analysé)";
+    } else if (taHa < 30) {
+        requiredCultures = 2;
+        ruleDescription = "10 ha ≤ TA < 30 ha : 2 cultures minimum, principale ≤ 75%";
+    } else {
+        requiredCultures = 3;
+        ruleDescription = "TA ≥ 30 ha : 3 cultures minimum, principale ≤ 75%, deux principales ≤ 95%";
+    }
+    
+    const hasEnoughCultures = nbCultures >= requiredCultures;
+    const mainOk = mainPct <= mainMaxPct;
+    let top2Ok = true;
+    
+    if (requiredCultures === 3) {
+        top2Ok = top2Pct <= top2MaxPct;
+    }
     
     const conform = hasEnoughCultures && mainOk && top2Ok;
     
     let reason = "";
-    if (!hasEnoughCultures) reason = `⚠️ Seulement ${nbCultures} culture(s) différente(s) - 3 requises`;
-    else if (!mainOk) reason = `⚠️ Culture principale trop importante (${mainPct.toFixed(1)}% > 75%)`;
-    else if (!top2Ok) reason = `⚠️ Deux cultures principales trop importantes (${top2Pct.toFixed(1)}% > 95%)`;
-    else reason = `✅ Conforme - ${nbCultures} cultures différentes, ${mainPct.toFixed(1)}% / ${top2Pct.toFixed(1)}%`;
+    if (!hasEnoughCultures) {
+        reason = `⚠️ ${nbCultures} culture(s) différente(s) - ${requiredCultures} requise(s) pour ${taHa.toFixed(2)} ha de TA`;
+    } else if (!mainOk) {
+        reason = `⚠️ Culture principale trop importante (${mainPct.toFixed(1)}% > 75%)`;
+    } else if (!top2Ok) {
+        reason = `⚠️ Deux cultures principales trop importantes (${top2Pct.toFixed(1)}% > 95%)`;
+    } else {
+        reason = `✅ Conforme - ${nbCultures} culture(s) différente(s), ${mainPct.toFixed(1)}% / ${top2Pct.toFixed(1)}%`;
+    }
     
     return {
         conform,
         reason,
+        ruleDescription,
+        requiredCultures,
         nbCultures,
         mainPct,
         secondPct,
@@ -240,15 +240,10 @@ export function renderBCAE7() {
     let taHa = 0;
     let ppHa = 0;
     let ptHa = 0;
-    let bioTaHa = 0;
-    
-    // Surfaces pour exemption A (75% TA en herbe/légumineuses/jachère)
+    let bioSauHa = 0;      // Surface BIO sur l'ensemble de la SAU
     let exemptionACoverHa = 0;
-    
-    // Surfaces pour exemption B (75% SAU en prairies + riz)
     let exemptionBCoverHa = 0;
     
-    // Stockage des cultures TA par GROUPE BCAE7
     const taCulturesMap = new Map();
     
     for (const row of allRows) {
@@ -257,32 +252,26 @@ export function renderBCAE7() {
         
         sauHa += surfaceAdm;
         
-        // Prairies permanentes
+        // BIO sur l'ensemble de la SAU (correction)
+        if (row.agri_bio_conduite === 'true') {
+            bioSauHa += surfaceAdm;
+        }
+        
         if (isPermanentGrassland(row)) {
             ppHa += surfaceAdm;
         }
         
-        // Terres arables
         if (isArableLand(row)) {
             taHa += surfaceAdm;
             
-            // BIO
-            if (row.agri_bio_conduite === 'true') {
-                bioTaHa += surfaceAdm;
-            }
-            
-            // Exemption A : herbe/légumineuses/jachère
             if (isExemptionACover(row)) {
                 exemptionACoverHa += surfaceAdm;
             }
             
-            // Pour le comptage des prairies temporaires (affichage)
-            const nomCulture = row.nom_culture || '';
             if (HERBACEOUS_TEMPORARY_CODES.has(row.code)) {
                 ptHa += surfaceAdm;
             }
             
-            // Agrégation par groupe BCAE7
             const groupCode = getBCAE7GroupCode(row.code);
             if (!taCulturesMap.has(groupCode)) {
                 taCulturesMap.set(groupCode, {
@@ -301,16 +290,11 @@ export function renderBCAE7() {
             }
         }
         
-        // Exemption B : prairies (permanentes + temporaires) + riz (toute SAU)
         if (isExemptionBCover(row)) {
             exemptionBCoverHa += surfaceAdm;
         }
     }
     
-    // Ajout du riz si déjà compté (il est déjà dans exemptionBCoverHa via la fonction)
-    // Mais attention : le riz peut être en TA ou en PP ? Normalement TA. On l'a déjà compté.
-    
-    // Conversion Map -> tableau pour analyse
     const taCulturesArray = Array.from(taCulturesMap.values()).map(entry => ({
         groupCode: entry.groupCode,
         label: entry.label,
@@ -320,7 +304,7 @@ export function renderBCAE7() {
     }));
     
     // ========== 2. CRITÈRES D'EXEMPTION ==========
-    const bioPercent = taHa > 0 ? (bioTaHa / taHa * 100) : 0;
+    const bioPercentSAU = sauHa > 0 ? (bioSauHa / sauHa * 100) : 0;
     const exemptionAPercent = taHa > 0 ? (exemptionACoverHa / taHa * 100) : 0;
     const exemptionBPercent = sauHa > 0 ? (exemptionBCoverHa / sauHa * 100) : 0;
     
@@ -328,46 +312,46 @@ export function renderBCAE7() {
     let exemptionIcon = "✅";
     let exemptionType = null;
     
-    // Critère 1 : 100% TA certifiée BIO ou conversion (exemption de droit)
-    if (bioPercent >= 99.9 && taHa > 0) {
-        exemptionReason = "100 % des Terres arables certifiées BIO ou en conversion";
+    // Exemption BIO : 100% de la SAU doit être BIO (correction)
+    if (bioPercentSAU >= 99.9 && sauHa > 0) {
+        exemptionReason = `100 % de la SAU (${sauHa.toFixed(2)} ha) certifiée BIO ou en conversion`;
         exemptionIcon = "✅🌿";
-        exemptionType = "BIO";
+        exemptionType = "BIO (100% SAU)";
     }
-    // Critère 2 : TA < 10 ha (exemption de droit)
+    // Exemption TA < 10 ha
     else if (taHa < 10) {
         exemptionReason = `Surface en Terres arables inférieure à 10 ha (${taHa.toFixed(2)} ha)`;
         exemptionIcon = "✅📐";
         exemptionType = "TA < 10 ha";
     }
-    // Critère 3 : >75% des TA en herbe/légumineuses/jachère (Annexe 2 - Section A)
+    // Exemption Annexe 2 - Section A : >75% des TA en herbe/légumineuses/jachère
     else if (exemptionAPercent > 75) {
         exemptionReason = `${exemptionAPercent.toFixed(1)} % des Terres arables en herbe, légumineuses fourragères ou jachère (>75%)`;
         exemptionIcon = "✅🍃";
         exemptionType = "Annexe 2 - Section A";
     }
-    // Critère 4 : >75% SAU en prairies (permanentes + temporaires) + riz (Annexe 2 - Section B)
+    // Exemption Annexe 2 - Section B : >75% SAU en prairies + riz
     else if (exemptionBPercent > 75) {
         exemptionReason = `${exemptionBPercent.toFixed(1)} % de la SAU en prairies (permanentes + temporaires) ou riz (>75%)`;
         exemptionIcon = "✅🐄";
         exemptionType = "Annexe 2 - Section B";
     }
-    // Critère 5 : SAU < 30 ha (exemption de droit)
+    // Exemption SAU < 30 ha
     else if (sauHa < 30) {
         exemptionReason = `SAU inférieure à 30 ha (${sauHa.toFixed(2)} ha)`;
         exemptionIcon = "✅📊";
         exemptionType = "SAU < 30 ha";
     }
     
-    // ========== 3. ANALYSE DIVERSIFICATION (si non exempté) ==========
+    // ========== 3. ANALYSE DIVERSIFICATION ==========
     let diversification = null;
     let isExempted = exemptionReason !== null;
     
     if (!isExempted) {
-        diversification = analyzeDiversification(taCulturesArray);
+        diversification = analyzeDiversification(taCulturesArray, taHa);
     }
     
-    // ========== 4. MISE À JOUR DE L'AFFICHAGE ==========
+    // ========== 4. AFFICHAGE ==========
     _setText('bcae7-stat-SAU', sauHa.toFixed(2).replace('.', ',') + ' ha');
     _setText('bcae7-stat-TA', taHa.toFixed(2).replace('.', ',') + ' ha');
     _setText('bcae7-stat-PP', ppHa.toFixed(2).replace('.', ',') + ' ha');
@@ -394,48 +378,24 @@ export function renderBCAE7() {
     }
     if (exemptionIconSpan) exemptionIconSpan.textContent = exemptionIcon;
     
-    // Mise à jour des cartes critères
-    _updateBioCard(bioPercent, taHa, bioTaHa);
+    // Cartes critères
+    _updateBioCard(bioPercentSAU, sauHa, bioSauHa);
     _updateSauCard(sauHa);
     _updateTaCard(taHa);
     _updateExemptionACard(exemptionAPercent, taHa, exemptionACoverHa);
     _updateExemptionBCard(exemptionBPercent, sauHa, exemptionBCoverHa);
     
-    // Affichage résultat diversification
-    const diversifStatus = document.getElementById('bcae7-diversif-status');
-    const diversifDetail = document.getElementById('bcae7-diversif-detail');
-    const nbGroupesSpan = document.getElementById('bcae7-nb-groupes');
+    // Résultat diversification
+    _updateDiversificationResult(isExempted, exemptionType, diversification, taHa);
     
-    if (diversifStatus && diversifDetail) {
-        if (isExempted) {
-            diversifStatus.innerHTML = "⏸️ Non requis (exploitation exemptée)";
-            diversifStatus.style.background = "#eef5ea";
-            diversifStatus.style.color = "#557055";
-            diversifDetail.innerHTML = `Exemption obtenue via : ${exemptionType}`;
-            if (nbGroupesSpan) nbGroupesSpan.textContent = "—";
-        } else if (diversification) {
-            if (diversification.conform) {
-                diversifStatus.innerHTML = "✅ CONFORME";
-                diversifStatus.style.background = "#d4f0d4";
-                diversifStatus.style.color = "#15803d";
-            } else {
-                diversifStatus.innerHTML = "❌ NON CONFORME";
-                diversifStatus.style.background = "#fee2e2";
-                diversifStatus.style.color = "#b91c1c";
-            }
-            diversifDetail.innerHTML = diversification.reason;
-            if (nbGroupesSpan) nbGroupesSpan.textContent = diversification.nbCultures;
-        }
-    }
-    
-    // Tableau des cultures TA par groupe BCAE7
+    // Tableau des cultures
     _renderCulturesTable(taCulturesArray, taHa);
 }
 
 // ===================================================
 // FONCTIONS DE MISE À JOUR DES CARTES
 // ===================================================
-function _updateBioCard(percent, taHa, bioTaHa) {
+function _updateBioCard(percent, totalHa, bioHa) {
     const percentEl = document.getElementById('bcae7-bio-percent');
     const barEl = document.getElementById('bcae7-bio-bar');
     const detailEl = document.getElementById('bcae7-bio-detail');
@@ -443,20 +403,19 @@ function _updateBioCard(percent, taHa, bioTaHa) {
     
     if (percentEl) percentEl.textContent = `${percent.toFixed(1).replace('.', ',')} %`;
     if (barEl) barEl.style.width = `${Math.min(percent, 100)}%`;
-    if (detailEl) detailEl.textContent = `${bioTaHa.toFixed(2).replace('.', ',')} / ${taHa.toFixed(2).replace('.', ',')} ha TA`;
+    if (detailEl) detailEl.textContent = `${bioHa.toFixed(2).replace('.', ',')} / ${totalHa.toFixed(2).replace('.', ',')} ha SAU`;
     
     if (statusEl) {
-        const isExempting = percent >= 99.9 && taHa > 0;
-        if (!taHa) {
-            statusEl.innerHTML = "❌ Aucune TA";
+        if (!totalHa) {
+            statusEl.innerHTML = "❌ Aucune SAU";
             statusEl.style.background = "#fee2e2";
             statusEl.style.color = "#b91c1c";
-        } else if (isExempting) {
-            statusEl.innerHTML = "✅ Exemption applicable (100% BIO)";
+        } else if (percent >= 99.9) {
+            statusEl.innerHTML = "✅ Exemption applicable (100% SAU BIO)";
             statusEl.style.background = "#d4f0d4";
             statusEl.style.color = "#15803d";
         } else {
-            statusEl.innerHTML = percent > 0 ? `⚠️ ${percent.toFixed(1)}% - 100% requis` : "❌ Aucune surface BIO";
+            statusEl.innerHTML = percent > 0 ? `⚠️ ${percent.toFixed(1)}% de la SAU - 100% requis` : "❌ Aucune surface BIO";
             statusEl.style.background = percent > 0 ? "#fff3e0" : "#fee2e2";
             statusEl.style.color = percent > 0 ? "#e6a017" : "#b91c1c";
         }
@@ -515,7 +474,7 @@ function _updateExemptionACard(percent, taHa, coverHa) {
             statusEl.style.background = "#fee2e2";
             statusEl.style.color = "#b91c1c";
         } else if (percent > 75) {
-            statusEl.innerHTML = "✅ >75% → Exemption applicable (Annexe 2 - Section A)";
+            statusEl.innerHTML = "✅ >75% → Exemption (Annexe 2 - Section A)";
             statusEl.style.background = "#d4f0d4";
             statusEl.style.color = "#15803d";
         } else {
@@ -542,7 +501,7 @@ function _updateExemptionBCard(percent, sauHa, coverHa) {
             statusEl.style.background = "#fee2e2";
             statusEl.style.color = "#b91c1c";
         } else if (percent > 75) {
-            statusEl.innerHTML = "✅ >75% → Exemption applicable (Annexe 2 - Section B)";
+            statusEl.innerHTML = "✅ >75% → Exemption (Annexe 2 - Section B)";
             statusEl.style.background = "#d4f0d4";
             statusEl.style.color = "#15803d";
         } else {
@@ -551,6 +510,86 @@ function _updateExemptionBCard(percent, sauHa, coverHa) {
             statusEl.style.color = "#b91c1c";
         }
     }
+}
+
+function _updateDiversificationResult(isExempted, exemptionType, diversification, taHa) {
+    const diversifStatus = document.getElementById('bcae7-diversif-status');
+    const diversifDetail = document.getElementById('bcae7-diversif-detail');
+    const nbGroupesSpan = document.getElementById('bcae7-nb-groupes');
+    const seuilSpan = document.getElementById('bcae7-seuil-required');
+    const taDisplaySpan = document.getElementById('bcae7-ta-display');
+    
+    if (taDisplaySpan) taDisplaySpan.textContent = taHa.toFixed(2).replace('.', ',');
+    
+    if (isExempted) {
+        if (diversifStatus) {
+            diversifStatus.innerHTML = "⏸️ Non requis (exploitation exemptée)";
+            diversifStatus.style.background = "#eef5ea";
+            diversifStatus.style.color = "#557055";
+        }
+        if (diversifDetail) diversifDetail.innerHTML = `Exemption obtenue via : ${exemptionType}`;
+        if (nbGroupesSpan) nbGroupesSpan.textContent = "—";
+        if (seuilSpan) seuilSpan.textContent = "—";
+        _updateDiversificationBar(null, null);
+    } else if (diversification) {
+        if (diversification.conform) {
+            if (diversifStatus) {
+                diversifStatus.innerHTML = "✅ CONFORME";
+                diversifStatus.style.background = "#d4f0d4";
+                diversifStatus.style.color = "#15803d";
+            }
+        } else {
+            if (diversifStatus) {
+                diversifStatus.innerHTML = "❌ NON CONFORME";
+                diversifStatus.style.background = "#fee2e2";
+                diversifStatus.style.color = "#b91c1c";
+            }
+        }
+        if (diversifDetail) diversifDetail.innerHTML = diversification.reason;
+        if (nbGroupesSpan) nbGroupesSpan.textContent = diversification.nbCultures;
+        if (seuilSpan) seuilSpan.textContent = `${diversification.requiredCultures} culture(s) requise(s)`;
+        _updateDiversificationBar(diversification, taHa);
+    }
+}
+
+function _updateDiversificationBar(diversification, taHa) {
+    const barContainer = document.getElementById('bcae7-diversif-bar-container');
+    if (!barContainer) return;
+    
+    if (!diversification) {
+        barContainer.innerHTML = '';
+        return;
+    }
+    
+    const mainPct = diversification.mainPct;
+    const top2Pct = diversification.top2Pct;
+    const requiredCultures = diversification.requiredCultures;
+    
+    let html = `
+        <div style="margin-top:8px">
+            <div style="display:flex;justify-content:space-between;font-size:0.7rem;margin-bottom:4px">
+                <span>📊 Culture principale</span>
+                <span><strong>${mainPct.toFixed(1)}%</strong> / 75%</span>
+            </div>
+            <div class="surface-progress" style="height:8px;background:#e0ecd8;border-radius:10px;overflow:hidden">
+                <div class="surface-progress-bar" style="width:${Math.min(mainPct, 100)}%;background:${mainPct <= 75 ? '#2d6a2f' : '#b91c1c'};height:100%"></div>
+            </div>
+    `;
+    
+    if (requiredCultures === 3) {
+        html += `
+            <div style="display:flex;justify-content:space-between;font-size:0.7rem;margin:12px 0 4px 0">
+                <span>📊 Deux cultures principales</span>
+                <span><strong>${top2Pct.toFixed(1)}%</strong> / 95%</span>
+            </div>
+            <div class="surface-progress" style="height:8px;background:#e0ecd8;border-radius:10px;overflow:hidden">
+                <div class="surface-progress-bar" style="width:${Math.min(top2Pct, 100)}%;background:${top2Pct <= 95 ? '#2d6a2f' : '#b91c1c'};height:100%"></div>
+            </div>
+        `;
+    }
+    
+    html += `</div>`;
+    barContainer.innerHTML = html;
 }
 
 function _renderCulturesTable(taCulturesArray, taHa) {
@@ -566,7 +605,6 @@ function _renderCulturesTable(taCulturesArray, taHa) {
         const codesStr = c.codes.join(', ');
         const examplesStr = c.examples.length ? c.examples[0] : codesStr;
         
-        // Mise en évidence si c'est un groupe d'exemption A
         let isExemptionAGroup = false;
         for (const code of c.codes) {
             if (LEGUMINEUSES_CODES.has(code) || HERBACEOUS_TEMPORARY_CODES.has(code)) {
@@ -581,11 +619,10 @@ function _renderCulturesTable(taCulturesArray, taHa) {
                 <td><strong>${c.label}</strong><br><span style="font-size:0.7rem;color:#888">${examplesStr}</span></td>
                 <td style="text-align:right;font-weight:600">${c.surfaceHa.toFixed(2).replace('.', ',')} ha</td>
                 <td style="text-align:right">${percent.toFixed(1).replace('.', ',')} %</td>
-                <td>
-                    <div class="surface-progress" style="height:8px;width:120px">
-                        <div class="surface-progress-bar" style="width:${Math.min(percent, 100)}%;background:${isExemptionAGroup ? '#2e7d32' : '#8b5cf6'}"></div>
+                <td style="text-align:center">
+                    <div class="surface-progress" style="height:6px;width:100px;background:#e0ecd8;border-radius:10px;overflow:hidden">
+                        <div class="surface-progress-bar" style="width:${Math.min(percent, 100)}%;background:${isExemptionAGroup ? '#2e7d32' : '#8b5cf6'};height:100%"></div>
                     </div>
-                    ${isExemptionAGroup ? '<span style="font-size:0.65rem;color:#2e7d32">(compte pour exemption A)</span>' : ''}
                 </td>
             </tr>
         `;
@@ -603,8 +640,8 @@ function _renderCulturesTable(taCulturesArray, taHa) {
             <tr style="background:#f4faf2">
                 <td colspan="5" style="padding:10px;font-size:0.85rem">
                     📊 <strong>${nbCultures}</strong> groupe(s) de cultures différents sur TA
-                    ${nbCultures < 3 ? ' ⚠️ Moins de 3 groupes différents (non conforme si non exempté)' : ''}
-                 </td>
+                    ${nbCultures < 3 ? '<span style="color:#e6a017"> ⚠️ Moins de 3 groupes différents</span>' : ''}
+                </td>
             </tr>
         `;
     }
