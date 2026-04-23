@@ -120,13 +120,12 @@ function getBCAE7GroupLabel(code) {
 }
 
 function isPermanentGrassland(row) {
-    return row.surface_cat === 'PP' || PERMANENT_GRASSLAND_CODES.has(row.code);
+    // Prairies permanentes (colonne "Surf. agri.")
+    return row.surface_cat === 'PP';
 }
-
 function isArableLand(row) {
-    const isTA = row.surface_cat === 'TA';
-    const isCPasTA = row.eco === 'CP gérée comme une TA - Autres cultures';
-    return isTA || isCPasTA;
+    // Seulement les terres arables (colonne "Surf. agri.")
+    return row.surface_cat === 'TA';
 }
 
 function isExemptionACover(row) {
@@ -138,8 +137,11 @@ function isExemptionACover(row) {
 
 function isExemptionBCover(row) {
     const code = row.code;
-    if (PERMANENT_GRASSLAND_CODES.has(code)) return true;
+    // Prairies permanentes (basé sur surface_cat)
+    if (row.surface_cat === 'PP') return true;
+    // Surfaces herbacées temporaires (basé sur le code culture)
     if (HERBACEOUS_TEMPORARY_CODES.has(code)) return true;
+    // Riz
     if (code === RIZ_CODE) return true;
     return false;
 }
