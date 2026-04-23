@@ -14,6 +14,7 @@ import { setIlotsData, renderIlots } from './ilots.js';
 import { setSNAdata, renderSNA, filterSNA, sortSNA } from './sna.js';
 import { setDocN, renderComparaison, resetComparaison, setIlotsN } from './comparaison.js';
 import { renderEligibilite } from './eligibilite.js';
+import { setBCAE7Data, renderBCAE7 } from './bcae7.js';
 
 // ===================================================
 // VARIABLES GLOBALES
@@ -45,7 +46,9 @@ function renderApp(data) {
   setEcoData(allRows);
   setMaecData(allMaecRows);
   setIlotsData(allRows);
-  setIlotsN(allRows);        // ← transmet les rows N à comparaison.js
+  setIlotsN(allRows);     
+  setBCAE7Data(allRows);
+  renderBCAE7();   // ← transmet les rows N à comparaison.js
   setSNAdata(snaList);
   setDocN(lastXmlDoc);
 
