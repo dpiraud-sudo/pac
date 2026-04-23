@@ -316,3 +316,17 @@ tbody td { padding: 8px 8px; border-bottom: 1px solid #e5eee2; vertical-align: m
   background: #fee2e2;
   color: #b91c1c;
 }
+
+/* Surface progress bar */
+.surface-progress {
+    background: #e0ecd8;
+    border-radius: 20px;
+    height: 10px;
+    overflow: hidden;
+}
+.surface-progress-bar {
+    background: #2d6a2f;
+    height: 100%;
+    border-radius: 20px;
+    transition: width 0.3s ease;
+}
