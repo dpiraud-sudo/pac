@@ -62,20 +62,17 @@ const BCAE7_GROUPS = {
     "Triticale printemps": ["TTP"]
 };
 
-// Fruits, légumes, fleurs (chaque code est une culture différente)
 const FRUIT_LEGUME_CODES = new Set([
     "AIL", "ANA", "ART", "CAR", "CCN", "CEL", "CHU", "EPI", "FLA", "FRA",
     "LBF", "MDI", "MLO", "NVT", "OIG", "POR", "POT", "PVP", "RDI", "TBT", "TOM"
 ]);
 
-// PPAM (chaque code est une culture différente)
 const PPAM_CODES = new Set([
     "AAR", "AME", "PSL", "HPC"
 ]);
 
 // ===================================================
-// SURFACES PRISES EN COMPTE POUR L'EXEMPTION A (75% TA en herbe/légumineuses/jachère)
-// Annexe 2 - Section A
+// EXEMPTION A (75% TA en herbe/légumineuses/jachère)
 // ===================================================
 const LEGUMINEUSES_CODES = new Set([
     "ARA", "FEV", "FNU", "FVL", "FVP", "GES", "LEC", "LDH", "LDP", "LOT",
@@ -87,8 +84,7 @@ const HERBACEOUS_TEMPORARY_CODES = new Set([
 ]);
 
 // ===================================================
-// SURFACES PRISES EN COMPTE POUR L'EXEMPTION B (75% SAU en prairies)
-// Annexe 2 - Section B
+// EXEMPTION B (75% SAU en prairies + riz)
 // ===================================================
 const PERMANENT_GRASSLAND_CODES = new Set([
     "PPH", "SPH", "SPL", "CAE", "CEE"
@@ -240,7 +236,8 @@ export function renderBCAE7() {
     let taHa = 0;
     let ppHa = 0;
     let ptHa = 0;
-    let bioSauHa = 0;      // Surface BIO sur l'ensemble de la SAU
+    let bioSauHa = 0;      // ⭐ Surface BIO sur l'ensemble de la SAU
+    
     let exemptionACoverHa = 0;
     let exemptionBCoverHa = 0;
     
@@ -252,7 +249,7 @@ export function renderBCAE7() {
         
         sauHa += surfaceAdm;
         
-        // BIO sur l'ensemble de la SAU (correction)
+        // ⭐ Vérification BIO sur TOUTE la SAU (pas seulement TA)
         if (row.agri_bio_conduite === 'true') {
             bioSauHa += surfaceAdm;
         }
@@ -304,6 +301,7 @@ export function renderBCAE7() {
     }));
     
     // ========== 2. CRITÈRES D'EXEMPTION ==========
+    // ⭐ BIO : pourcentage par rapport à la SAU TOTALE
     const bioPercentSAU = sauHa > 0 ? (bioSauHa / sauHa * 100) : 0;
     const exemptionAPercent = taHa > 0 ? (exemptionACoverHa / taHa * 100) : 0;
     const exemptionBPercent = sauHa > 0 ? (exemptionBCoverHa / sauHa * 100) : 0;
@@ -312,7 +310,7 @@ export function renderBCAE7() {
     let exemptionIcon = "✅";
     let exemptionType = null;
     
-    // Exemption BIO : 100% de la SAU doit être BIO (correction)
+    // ⭐ Exemption BIO : 100% de la SAU doit être BIO
     if (bioPercentSAU >= 99.9 && sauHa > 0) {
         exemptionReason = `100 % de la SAU (${sauHa.toFixed(2)} ha) certifiée BIO ou en conversion`;
         exemptionIcon = "✅🌿";
@@ -324,13 +322,13 @@ export function renderBCAE7() {
         exemptionIcon = "✅📐";
         exemptionType = "TA < 10 ha";
     }
-    // Exemption Annexe 2 - Section A : >75% des TA en herbe/légumineuses/jachère
+    // Exemption Annexe 2 - Section A
     else if (exemptionAPercent > 75) {
         exemptionReason = `${exemptionAPercent.toFixed(1)} % des Terres arables en herbe, légumineuses fourragères ou jachère (>75%)`;
         exemptionIcon = "✅🍃";
         exemptionType = "Annexe 2 - Section A";
     }
-    // Exemption Annexe 2 - Section B : >75% SAU en prairies + riz
+    // Exemption Annexe 2 - Section B
     else if (exemptionBPercent > 75) {
         exemptionReason = `${exemptionBPercent.toFixed(1)} % de la SAU en prairies (permanentes + temporaires) ou riz (>75%)`;
         exemptionIcon = "✅🐄";
@@ -378,7 +376,7 @@ export function renderBCAE7() {
     }
     if (exemptionIconSpan) exemptionIconSpan.textContent = exemptionIcon;
     
-    // Cartes critères
+    // ⭐ Mise à jour des cartes (BIO maintenant basée sur la SAU)
     _updateBioCard(bioPercentSAU, sauHa, bioSauHa);
     _updateSauCard(sauHa);
     _updateTaCard(taHa);
