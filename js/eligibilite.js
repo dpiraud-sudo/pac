@@ -1,31 +1,63 @@
-// js/eligibilite.js - Version corrigée
+// js/eligibilite.js - Version corrigée (semences certifiées, fermières, déshydratation)
 import { formatHa, escHtml } from './utils.js';
 
 // ===================================================
 // RÈGLES D'ÉLIGIBILITÉ
 // ===================================================
+//
+// opt peut contenir une ou plusieurs conditions séparées par "|" :
+//   semCert   → productionSemences doit être true  (semences certifiées requises)
+//   noSemCert → productionSemences doit être false (semences certifiées = inéligible)
+//   noSemFerm → productionFermiers doit être false (semences fermières = inéligible)
+//   noDeshyd  → deshydratation doit être false     (déshydratation = inéligible)
+//
+// Légumineuses fourragères : l'annexe PAC 2026 indique "non / non / non" pour les
+// trois colonnes → une parcelle est inéligible si l'une des trois cases est cochée.
+//
+// Légumineuses à graines : semences certifiées, fermières et déshydratation sont
+// toutes des combinaisons autorisées → pas de restriction sur ces attributs.
+//
 const ELIGIBILITY_RULES = [
-  { codes: ["RIZ"], precision: "001", aide: "Aide à la production de riz" },
-  { codes: ["BDH","BDP"], precision: "001", aide: "Aide à la production de blé dur" },
-  { codes: ["HBL"], precision: null, aide: "Aide à la production de houblon" },
-  { codes: ["TOM"], precision: "001", aide: "Aide à la production de tomates destinées à la transformation" },
-  { codes: ["GRA"], precision: null, aide: "Aide à la production de semences de graminées prairiales", opt: "semCert" },
-  { codes: ["PTC"], precision: "002", aide: "Aide à la production de pommes de terre féculières" },
-  { codes: ["PRU"], precision: ["001","002"], aide: "Aide à la production de prunes d'Ente destinées à la transformation" },
-  { codes: ["PWT"], precision: ["001","002"], aide: "Aide à la production de poires Williams destinées à la transformation" },
-  { codes: ["PVT"], precision: ["001","002"], aide: "Aide à la production de pêches Pavie destinées à la transformation" },
-  { codes: ["CBT"], precision: ["001","002"], aide: "Aide à la production de cerises Bigarreau destinées à la transformation" },
-  { codes: ["CHV"], precision: null, aide: "Aide à la production de chanvre" },
-  { codes: ["FVL","FVP","LEC","FNU","LOT","LDH","LDP","LUZ","PHI","PPR","SAI","TRE","VES","GES","PAG","MLF"], precision: "002", aide: "Aide aux légumineuses fourragères" },
-  { codes: ["MLC","MLG"], precision: "001", aide: "Aide aux légumineuses fourragères" },
-  { codes: ["ARA","FEV","FNU","FVL","FVP","GES","LDH","LDP","LEC","MLF","MPC","PAG","PCH","PHI","PHS","PPR","SAI","SOJ","TRE","VES"], precision: "001", aide: "Aide aux légumineuses à graines" },
-  { codes: ["AIL","ART","FRA"], precision: null, aide: "Aide au maraîchage" },
-  { codes: ["CAR","MDI"], precision: "001", aide: "Aide au maraîchage" },
-  { codes: ["TOM"], precision: "002", aide: "Aide au maraîchage" }
+  { codes: ["RIZ"],                     precision: "001",         aide: "Aide à la production de riz" },
+  { codes: ["BDH","BDP"],               precision: "001",         aide: "Aide à la production de blé dur" },
+  { codes: ["HBL"],                     precision: null,          aide: "Aide à la production de houblon" },
+  { codes: ["TOM"],                     precision: "001",         aide: "Aide à la production de tomates destinées à la transformation" },
+  { codes: ["GRA"],                     precision: null,          aide: "Aide à la production de semences de graminées prairiales", opt: "semCert" },
+  { codes: ["PTC"],                     precision: "002",         aide: "Aide à la production de pommes de terre féculières" },
+  { codes: ["PRU"],                     precision: ["001","002"], aide: "Aide à la production de prunes d'Ente destinées à la transformation" },
+  { codes: ["PWT"],                     precision: ["001","002"], aide: "Aide à la production de poires Williams destinées à la transformation" },
+  { codes: ["PVT"],                     precision: ["001","002"], aide: "Aide à la production de pêches Pavie destinées à la transformation" },
+  { codes: ["CBT"],                     precision: ["001","002"], aide: "Aide à la production de cerises Bigarreau destinées à la transformation" },
+  { codes: ["CHV"],                     precision: null,          aide: "Aide à la production de chanvre" },
+
+  // Légumineuses fourragères — inéligible si semences certifiées, fermières OU déshydratation cochée
+  {
+    codes: ["FVL","FVP","LEC","FNU","LOT","LDH","LDP","LUZ","PHI","PPR","SAI","TRE","VES","GES","PAG","MLF"],
+    precision: "002",
+    aide: "Aide aux légumineuses fourragères",
+    opt: "noSemCert|noSemFerm|noDeshyd"
+  },
+  {
+    codes: ["MLC","MLG"],
+    precision: "001",
+    aide: "Aide aux légumineuses fourragères",
+    opt: "noSemCert|noSemFerm|noDeshyd"
+  },
+
+  // Légumineuses à graines — semences certifiées, fermières et déshydratation toutes autorisées
+  {
+    codes: ["ARA","FEV","FNU","FVL","FVP","GES","LDH","LDP","LEC","MLF","MPC","PAG","PCH","PHI","PHS","PPR","SAI","SOJ","TRE","VES"],
+    precision: "001",
+    aide: "Aide aux légumineuses à graines"
+  },
+
+  { codes: ["AIL","ART","FRA"],         precision: null,  aide: "Aide au maraîchage" },
+  { codes: ["CAR","MDI"],               precision: "001", aide: "Aide au maraîchage" },
+  { codes: ["TOM"],                     precision: "002", aide: "Aide au maraîchage" }
 ];
 
 // ===================================================
-// EXTRACTION À PARTIR DU xmlDoc (même logique que parser.js)
+// EXTRACTION À PARTIR DU xmlDoc
 // ===================================================
 function extractParcellesFromDoc(xmlDoc) {
   const NS = 'urn:x-telepac:fr.gouv.agriculture.telepac:echange-producteur';
@@ -44,21 +76,30 @@ function extractParcellesFromDoc(xmlDoc) {
 
       const codeEl = cp.getElementsByTagNameNS(NS, 'code-culture')[0];
       const precEl = cp.getElementsByTagNameNS(NS, 'precision')[0];
-      const saEl = parc.getElementsByTagNameNS(NS, 'surface-admissible')[0];
+      const saEl   = parc.getElementsByTagNameNS(NS, 'surface-admissible')[0];
 
-      const codeCulture = codeEl ? codeEl.textContent.trim() : '';
-      const precision = precEl ? precEl.textContent.trim() : '';
-      const surface = saEl ? parseFloat(saEl.textContent.trim()) || 0 : 0;
+      const codeCulture       = codeEl ? codeEl.textContent.trim() : '';
+      const precision         = precEl ? precEl.textContent.trim() : '';
+      const surface           = saEl   ? parseFloat(saEl.textContent.trim()) || 0 : 0;
+
+      // Les trois attributs sont distincts dans le XML :
+      //   production-semences → semences certifiées
+      //   production-fermiers → semences fermières
+      //   deshydratation      → déshydratation
       const productionSemences = cp.getAttribute('production-semences') === 'true';
+      const productionFermiers = cp.getAttribute('production-fermiers') === 'true';
+      const deshydratation     = cp.getAttribute('deshydratation')      === 'true';
 
       if (codeCulture) {
-        parcelles.push({ 
-          ilot: numIlot, 
-          parcelle: numParcelle, 
-          codeCulture, 
-          precision, 
-          surface, 
-          productionSemences 
+        parcelles.push({
+          ilot: numIlot,
+          parcelle: numParcelle,
+          codeCulture,
+          precision,
+          surface,
+          productionSemences, // semences certifiées
+          productionFermiers, // semences fermières
+          deshydratation      // déshydratation
         });
       }
     }
@@ -90,18 +131,18 @@ function extractRequestedAidesFromDoc(xmlDoc) {
   if (eco?.getAttribute('aide-ecoregime') === 'true') aides.push("Écorégime");
 
   const COUPLED_ATTRS = [
-    ['ble-dur', "Aide à la production de blé dur"],
-    ['riz', "Aide à la production de riz"],
-    ['houblon', "Aide à la production de houblon"],
-    ['tomates-industrie', "Aide à la production de tomates destinées à la transformation"],
-    ['semences-graminees', "Aide à la production de semences de graminées prairiales"],
-    ['pommes-terre-feculieres', "Aide à la production de pommes de terre féculières"],
-    ['prunes-transformation', "Aide à la production de prunes d'Ente destinées à la transformation"],
-    ['poires-transformation', "Aide à la production de poires Williams destinées à la transformation"],
-    ['peches-transformation', "Aide à la production de pêches Pavie destinées à la transformation"],
+    ['ble-dur',                "Aide à la production de blé dur"],
+    ['riz',                    "Aide à la production de riz"],
+    ['houblon',                "Aide à la production de houblon"],
+    ['tomates-industrie',      "Aide à la production de tomates destinées à la transformation"],
+    ['semences-graminees',     "Aide à la production de semences de graminées prairiales"],
+    ['pommes-terre-feculieres',"Aide à la production de pommes de terre féculières"],
+    ['prunes-transformation',  "Aide à la production de prunes d'Ente destinées à la transformation"],
+    ['poires-transformation',  "Aide à la production de poires Williams destinées à la transformation"],
+    ['peches-transformation',  "Aide à la production de pêches Pavie destinées à la transformation"],
     ['cerises-transformation', "Aide à la production de cerises Bigarreau destinées à la transformation"],
-    ['chanvre', "Aide à la production de chanvre"],
-    ['maraichage', "Aide au maraîchage"],
+    ['chanvre',                "Aide à la production de chanvre"],
+    ['maraichage',             "Aide au maraîchage"],
   ];
   for (const [attr, label] of COUPLED_ATTRS) {
     if (p1.getAttribute(attr) === 'true' && !aides.includes(label)) aides.push(label);
@@ -111,30 +152,60 @@ function extractRequestedAidesFromDoc(xmlDoc) {
   return aides;
 }
 
+// ===================================================
+// CALCUL DES AIDES ÉLIGIBLES PAR PARCELLE
+// ===================================================
 function getEligibleAides(parcelle) {
   const aides = [];
+
   for (const rule of ELIGIBILITY_RULES) {
+    // 1. Le code culture doit figurer dans la règle
     if (!rule.codes.includes(parcelle.codeCulture)) continue;
+
+    // 2. La précision doit correspondre (null = pas de contrainte)
     if (rule.precision !== null) {
       const prec = String(parcelle.precision || '');
       if (Array.isArray(rule.precision)) {
         if (!rule.precision.includes(prec)) continue;
       } else if (prec !== rule.precision) continue;
     }
-    if (rule.opt === 'semCert' && !parcelle.productionSemences) continue;
+
+    // 3. Évaluation des conditions optionnelles
+    if (rule.opt) {
+      const opts = rule.opt.split('|');
+      let exclu = false;
+
+      for (const o of opts) {
+        // semCert   : semences certifiées requises (la parcelle DOIT avoir productionSemences=true)
+        if (o === 'semCert'   && !parcelle.productionSemences) { exclu = true; break; }
+        // noSemCert : semences certifiées interdites (la parcelle NE DOIT PAS avoir productionSemences=true)
+        if (o === 'noSemCert' &&  parcelle.productionSemences) { exclu = true; break; }
+        // noSemFerm : semences fermières interdites
+        if (o === 'noSemFerm' &&  parcelle.productionFermiers) { exclu = true; break; }
+        // noDeshyd  : déshydratation interdite
+        if (o === 'noDeshyd'  &&  parcelle.deshydratation)     { exclu = true; break; }
+      }
+
+      if (exclu) continue;
+    }
+
     if (!aides.includes(rule.aide)) aides.push(rule.aide);
   }
+
   return aides;
 }
 
+// ===================================================
+// RENDU HTML
+// ===================================================
 export function renderEligibilite(xmlDoc) {
   console.log('renderEligibilite appelé, xmlDoc =', xmlDoc ? 'présent' : 'null');
-  
-  const noFile = document.getElementById('elig-no-file');
+
+  const noFile  = document.getElementById('elig-no-file');
   const results = document.getElementById('elig-results');
 
   if (!xmlDoc) {
-    if (noFile) noFile.style.display = 'block';
+    if (noFile)  noFile.style.display  = 'block';
     if (results) results.style.display = 'none';
     console.log('Aucun xmlDoc, affichage du message');
     return;
@@ -143,7 +214,7 @@ export function renderEligibilite(xmlDoc) {
   console.log('Extraction des parcelles...');
   const parcelles = extractParcellesFromDoc(xmlDoc);
   console.log(`${parcelles.length} parcelles extraites`);
-  
+
   const requestedAides = extractRequestedAidesFromDoc(xmlDoc);
   console.log('Aides demandées:', requestedAides);
 
@@ -156,20 +227,20 @@ export function renderEligibilite(xmlDoc) {
   const eligibleAidesSet = new Set();
   for (const p of parcellesWithAides) p.aides.forEach(a => eligibleAidesSet.add(a));
   const eligibleAides = [...eligibleAidesSet];
-  const missingAides = eligibleAides.filter(a => !requestedAides.includes(a));
+  const missingAides  = eligibleAides.filter(a => !requestedAides.includes(a));
 
-  if (noFile) noFile.style.display = 'none';
+  if (noFile)  noFile.style.display  = 'none';
   if (results) results.style.display = 'block';
 
   // Mise à jour des KPIs
-  _setText('elig-stat-parcelles', parcelles.length);
-  _setText('elig-stat-eligibles', parcellesWithAides.length);
-  _setText('elig-stat-aides-dem', requestedAides.length);
-  _setText('elig-stat-aides-elig', eligibleAides.length);
-  _setText('elig-stat-manquantes', missingAides.length);
-  _setText('elig-count-dem', requestedAides.length);
-  _setText('elig-count-elig', eligibleAides.length);
-  _setText('elig-count-manq', missingAides.length);
+  _setText('elig-stat-parcelles',   parcelles.length);
+  _setText('elig-stat-eligibles',   parcellesWithAides.length);
+  _setText('elig-stat-aides-dem',   requestedAides.length);
+  _setText('elig-stat-aides-elig',  eligibleAides.length);
+  _setText('elig-stat-manquantes',  missingAides.length);
+  _setText('elig-count-dem',        requestedAides.length);
+  _setText('elig-count-elig',       eligibleAides.length);
+  _setText('elig-count-manq',       missingAides.length);
 
   // Alerte
   const alertDiv = document.getElementById('elig-alert');
@@ -189,7 +260,7 @@ export function renderEligibilite(xmlDoc) {
       border-left:4px solid ${cls === 'manq' ? '#e6a017' : '#2c6e3c'};
       padding:7px 12px;border-radius:10px;font-size:0.8rem;margin-bottom:6px">${icon} ${txt}</div>`;
 
-  const listDem = document.getElementById('elig-list-dem');
+  const listDem  = document.getElementById('elig-list-dem');
   const listElig = document.getElementById('elig-list-elig');
   const listManq = document.getElementById('elig-list-manq');
 
@@ -219,6 +290,16 @@ export function renderEligibilite(xmlDoc) {
       `<span style="background:#2a7f3a;color:white;padding:3px 10px;border-radius:40px;font-size:0.7rem;font-weight:600;display:inline-block;margin:2px">${a}</span>`
     ).join('');
 
+    // Indicateurs semences/déshydratation pour info
+    const flags = [
+      p.productionSemences ? '🌱 Sem. certifiées' : null,
+      p.productionFermiers ? '🌾 Sem. fermières'  : null,
+      p.deshydratation     ? '♨️ Déshydratation'  : null,
+    ].filter(Boolean);
+    const flagsHtml = flags.length
+      ? `<br><span style="font-size:0.65rem;color:#888">${flags.join(' · ')}</span>`
+      : '';
+
     const hasRequested = p.aides.some(a => requestedAides.includes(a));
     const statusHtml = hasRequested
       ? `<span style="background:#6c8b5e;color:white;padding:3px 10px;border-radius:40px;font-size:0.7rem;font-weight:600">✅ Demandée</span>`
@@ -229,12 +310,12 @@ export function renderEligibilite(xmlDoc) {
       <td style="text-align:center">${p.parcelle}</td>
       <td><span class="code-badge">${p.codeCulture}</span></td>
       <td style="text-align:center">${p.precision || '—'}</td>
-      <td style="text-align:right">${p.surface}</td>
+      <td style="text-align:right">${p.surface}${flagsHtml}</td>
       <td>${aidesHtml}</td>
       <td style="text-align:center">${statusHtml}</td>
     </tr>`;
   }).join('');
-  
+
   console.log('Rendu éligibilité terminé');
 }
 
