@@ -57,6 +57,17 @@ function formatVoieEcoregime(code) {
   return m[code] || (code ? `Voie inconnue (${code})` : "-");
 }
 
+function formatChoixBcae7(code) {
+  const m = {
+    "EX": { label: "Exempté", cls: "aides-status-other" },
+    "DC": { label: "Diversification de l'assolement", cls: "aides-status-true" },
+    "RC": { label: "Rotation des cultures", cls: "aides-status-true" }
+  };
+  if (!code) return null;
+  const u = code.trim().toUpperCase();
+  return m[u] || { label: `${u} (valeur inconnue)`, cls: "aides-status-other" };
+}
+
 export function extractAidesFromDoc(doc) {
   const NS2 = 'urn:x-telepac:fr.gouv.agriculture.telepac:echange-producteur';
   const getText = (el, tag) => {
@@ -312,8 +323,16 @@ export function renderAides(xmlDoc) {
     if (key === "interlocuteur-agree-ISN") {
       s5 += `<div class="aides-card"><div class="aides-card-header"><span class="aides-card-name">${obligLabels[key]}</span><span class="aides-status aides-status-other">${escHtml(getAssureurLibelle(data[key]) || data[key])}</span></div></div>`;
     } else {
-      let det = (key === "choix-bcae7" && data[key] !== "true" && data[key] !== "false") ? `<div>Valeur : ${escHtml(data[key])}</div>` : "";
-      s5 += card(obligLabels[key], data[key], det);
+      if (key === "choix-bcae7") {
+        const bcae7 = formatChoixBcae7(data[key]);
+        if (bcae7) {
+          s5 += `<div class="aides-card"><div class="aides-card-header"><span class="aides-card-name">${obligLabels[key]}</span><span class="aides-status ${bcae7.cls}">${escHtml(bcae7.label)}</span></div></div>`;
+        } else {
+          s5 += card(obligLabels[key], data[key]);
+        }
+      } else {
+        s5 += card(obligLabels[key], data[key]);
+      }
     }
   }
   if (s5) html += `<div class="aides-section"><h2>📋 Obligations & Engagements</h2>${s5}</div>`;
