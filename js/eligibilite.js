@@ -1,36 +1,101 @@
-// js/eligibilite.js - Version corrigée (semences certifiées, fermières, déshydratation)
+// js/eligibilite.js - Version conforme à la notice PAC 2026
+// Règles basées sur les tableaux pages 14 à 20 de la notice
 import { formatHa, escHtml } from './utils.js';
 
 // ===================================================
-// RÈGLES D'ÉLIGIBILITÉ
+// RÈGLES D'ÉLIGIBILITÉ (conformes notice PAC 2026)
 // ===================================================
 //
-// opt peut contenir une ou plusieurs conditions séparées par "|" :
-//   semCert   → productionSemences doit être true  (semences certifiées requises)
-//   noSemCert → productionSemences doit être false (semences certifiées = inéligible)
-//   noSemFerm → productionFermiers doit être false (semences fermières = inéligible)
-//   noDeshyd  → deshydratation doit être false     (déshydratation = inéligible)
+// opt peut contenir une ou plusieurs conditions :
+//   semCert   → productionSemences doit être true
+//   noSemCert → productionSemences doit être false
+//   noSemFerm → productionFermiers doit être false
+//   deshyd    → deshydratation doit être true
+//   noDeshyd  → deshydratation doit être false
 //
-// Légumineuses fourragères : l'annexe PAC 2026 indique "non / non / non" pour les
-// trois colonnes → une parcelle est inéligible si l'une des trois cases est cochée.
-//
-// Légumineuses à graines : semences certifiées, fermières et déshydratation sont
-// toutes des combinaisons autorisées → pas de restriction sur ces attributs.
+// Attention : Une même parcelle ne peut être éligible qu'à une seule aide couplée.
+// L'ordre des règles est important : l'aide graines est prioritaire sur l'aide fourragère
 //
 const ELIGIBILITY_RULES = [
-  { codes: ["RIZ"],                     precision: "001",         aide: "Aide à la production de riz" },
-  { codes: ["BDH","BDP"],               precision: "001",         aide: "Aide à la production de blé dur" },
-  { codes: ["HBL"],                     precision: null,          aide: "Aide à la production de houblon" },
-  { codes: ["TOM"],                     precision: "001",         aide: "Aide à la production de tomates destinées à la transformation" },
-  { codes: ["GRA"],                     precision: null,          aide: "Aide à la production de semences de graminées prairiales", opt: "semCert" },
-  { codes: ["PTC"],                     precision: "002",         aide: "Aide à la production de pommes de terre féculières" },
+  // ===================================================
+  // Aides spécifiques (sans overlap avec légumineuses)
+  // ===================================================
+  { codes: ["RIZ"],                     precision: "001", aide: "Aide à la production de riz" },
+  { codes: ["BDH","BDP"],               precision: "001", aide: "Aide à la production de blé dur" },
+  { codes: ["HBL"],                     precision: null,  aide: "Aide à la production de houblon" },
+  { codes: ["TOM"],                     precision: "001", aide: "Aide à la production de tomates destinées à la transformation" },
+  { codes: ["GRA"],                     precision: null,  aide: "Aide à la production de semences de graminées prairiales", opt: "semCert" },
+  { codes: ["PTC"],                     precision: "002", aide: "Aide à la production de pommes de terre féculières" },
   { codes: ["PRU"],                     precision: ["001","002"], aide: "Aide à la production de prunes d'Ente destinées à la transformation" },
   { codes: ["PWT"],                     precision: ["001","002"], aide: "Aide à la production de poires Williams destinées à la transformation" },
   { codes: ["PVT"],                     precision: ["001","002"], aide: "Aide à la production de pêches Pavie destinées à la transformation" },
   { codes: ["CBT"],                     precision: ["001","002"], aide: "Aide à la production de cerises Bigarreau destinées à la transformation" },
   { codes: ["CHV"],                     precision: null,          aide: "Aide à la production de chanvre" },
 
-  // Légumineuses fourragères — inéligible si semences certifiées, fermières OU déshydratation cochée
+  // ===================================================
+  // AIDE LÉGUMINEUSES À GRAINES / FOURRAGÈRES DÉSHYDRATÉES / SEMENCES
+  // (une seule aide pour ces trois cas, page 4 de la notice)
+  // ===================================================
+
+  // --- Cas 1 : Graines (protéagineux, soja, légumes secs) sans semences certifiées ---
+  {
+    codes: ["ARA","FEV","FNU","FVL","FVP","GES","LDH","LDP","LEC","LOT","MLF","MPC","PHI","PHS","PPR","SAI","SOJ","TRE","VES"],
+    precision: "001",
+    aide: "Aide aux légumineuses à graines, fourragères déshydratées ou semences",
+    opt: "noSemCert|noSemFerm|noDeshyd"
+  },
+  // --- Cas 1bis : Graines avec semences certifiées ---
+  {
+    codes: ["ARA","FEV","FNU","FVL","FVP","GES","LDH","LDP","LEC","LOT","MLF","MPC","PHI","PHS","PPR","SAI","SOJ","TRE","VES"],
+    precision: "001",
+    aide: "Aide aux légumineuses à graines, fourragères déshydratées ou semences",
+    opt: "semCert|noSemFerm|noDeshyd"
+  },
+  // --- Cas 1ter : Graines avec semences fermières ---
+  {
+    codes: ["ARA","FEV","FNU","FVL","FVP","GES","LDH","LDP","LEC","LOT","MLF","MPC","PHI","PHS","PPR","SAI","SOJ","TRE","VES"],
+    precision: "001",
+    aide: "Aide aux légumineuses à graines, fourragères déshydratées ou semences",
+    opt: "noSemCert|semFerm|noDeshyd"
+  },
+
+  // --- Cas 2 : Fourragères déshydratées (sans semences certifiées) ---
+  // Attention : le code LUZ et d'autres sont en precision 002 pour ce cas
+  {
+    codes: ["FNU","FVL","FVP","GES","LDH","LDP","LEC","LOT","LUZ","MLF","PHI","PPR","SAI","TRE","VES"],
+    precision: "002",
+    aide: "Aide aux légumineuses à graines, fourragères déshydratées ou semences",
+    opt: "noSemCert|noSemFerm|deshyd"
+  },
+  // --- Cas 2bis : Fourragères déshydratées avec semences certifiées ---
+  {
+    codes: ["FNU","FVL","FVP","GES","LDH","LDP","LEC","LOT","LUZ","MLF","PHI","PPR","SAI","TRE","VES"],
+    precision: "002",
+    aide: "Aide aux légumineuses à graines, fourragères déshydratées ou semences",
+    opt: "semCert|noSemFerm|deshyd"
+  },
+
+  // --- Cas 3 : Semences de légumineuses fourragères (Luzerne, Trèfle, Sainfoin, Vesce, Lotier, Lentille) ---
+  // Selon page 4 : "les surfaces cultivées pour la multiplication de semences certifiées de légumineuses fourragères"
+  // Dans les tableaux pages 16-20, on voit des lignes avec semences certifiées=true et precision=001 ou 002
+  {
+    codes: ["LUZ","TRE","SAI","VES","LOT","LEC"],
+    precision: "001",
+    aide: "Aide aux légumineuses à graines, fourragères déshydratées ou semences",
+    opt: "semCert|noSemFerm|noDeshyd"
+  },
+  {
+    codes: ["LUZ","TRE","SAI","VES","LOT","LEC"],
+    precision: "002",
+    aide: "Aide aux légumineuses à graines, fourragères déshydratées ou semences",
+    opt: "semCert|noSemFerm|deshyd"
+  },
+
+  // ===================================================
+  // AIDE LÉGUMINEUSES FOURRAGÈRES (uniquement si non éligible à l'aide précédente)
+  // Notice page 2 : "Une même surface ne peut être éligible qu'à une seule aide couplée"
+  // Donc cette aide n'est attribuée que si la parcelle n'a pas déjà l'aide graines/déshydratation
+  // ===================================================
   {
     codes: ["FVL","FVP","LEC","FNU","LOT","LDH","LDP","LUZ","PHI","PPR","SAI","TRE","VES","GES","PAG","MLF"],
     precision: "002",
@@ -44,16 +109,10 @@ const ELIGIBILITY_RULES = [
     opt: "noSemCert|noSemFerm|noDeshyd"
   },
 
-  // Légumineuses à graines — semences certifiées, fermières et déshydratation toutes autorisées
-  {
-    codes: ["ARA","FEV","FNU","FVL","FVP","GES","LDH","LDP","LEC","MLF","MPC","PAG","PCH","PHI","PHS","PPR","SAI","SOJ","TRE","VES"],
-    precision: "001",
-    aide: "Aide aux légumineuses à graines"
-  },
-
-  { codes: ["AIL","ART","FRA"],         precision: null,  aide: "Aide au maraîchage" },
-  { codes: ["CAR","MDI"],               precision: "001", aide: "Aide au maraîchage" },
-  { codes: ["TOM"],                     precision: "002", aide: "Aide au maraîchage" }
+  // ===================================================
+  // Aide maraîchage
+  // ===================================================
+  { codes: ["AIL","ART","FRA","CAR","MDI","CEL","CHU","CCN","EPI","FLA","FLP","LBF","MLO","NVT","OIG","RDI","PHF","POR","PVP","POT","PFR"], precision: null, aide: "Aide au maraîchage" }
 ];
 
 // ===================================================
@@ -82,10 +141,6 @@ function extractParcellesFromDoc(xmlDoc) {
       const precision         = precEl ? precEl.textContent.trim() : '';
       const surface           = saEl   ? parseFloat(saEl.textContent.trim()) || 0 : 0;
 
-      // Les trois attributs sont distincts dans le XML :
-      //   production-semences → semences certifiées
-      //   production-fermiers → semences fermières
-      //   deshydratation      → déshydratation
       const productionSemences = cp.getAttribute('production-semences') === 'true';
       const productionFermiers = cp.getAttribute('production-fermiers') === 'true';
       const deshydratation     = cp.getAttribute('deshydratation')      === 'true';
@@ -97,9 +152,9 @@ function extractParcellesFromDoc(xmlDoc) {
           codeCulture,
           precision,
           surface,
-          productionSemences, // semences certifiées
-          productionFermiers, // semences fermières
-          deshydratation      // déshydratation
+          productionSemences,
+          productionFermiers,
+          deshydratation
         });
       }
     }
@@ -119,7 +174,7 @@ function extractRequestedAidesFromDoc(xmlDoc) {
   if (legF?.getAttribute('legumineuse-fourragere') === 'true') aides.push("Aide aux légumineuses fourragères");
 
   const legG = p1.getElementsByTagNameNS(NS, 'demande-legumineuses-graines')[0];
-  if (legG?.getAttribute('legumineuse-graine') === 'true') aides.push("Aide aux légumineuses à graines");
+  if (legG?.getAttribute('legumineuse-graine') === 'true') aides.push("Aide aux légumineuses à graines, fourragères déshydratées ou semences");
 
   const assR = p1.getElementsByTagNameNS(NS, 'demande-assurance-recolte')[0];
   if (assR?.getAttribute('assurance-recolte') === 'true') aides.push("Aide à l'assurance récolte");
@@ -176,27 +231,36 @@ function getEligibleAides(parcelle) {
       let exclu = false;
 
       for (const o of opts) {
-        // semCert   : semences certifiées requises (la parcelle DOIT avoir productionSemences=true)
         if (o === 'semCert'   && !parcelle.productionSemences) { exclu = true; break; }
-        // noSemCert : semences certifiées interdites (la parcelle NE DOIT PAS avoir productionSemences=true)
         if (o === 'noSemCert' &&  parcelle.productionSemences) { exclu = true; break; }
-        // noSemFerm : semences fermières interdites
+        if (o === 'semFerm'   && !parcelle.productionFermiers) { exclu = true; break; }
         if (o === 'noSemFerm' &&  parcelle.productionFermiers) { exclu = true; break; }
-        // noDeshyd  : déshydratation interdite
+        if (o === 'deshyd'    && !parcelle.deshydratation)     { exclu = true; break; }
         if (o === 'noDeshyd'  &&  parcelle.deshydratation)     { exclu = true; break; }
       }
 
       if (exclu) continue;
     }
 
+    // Éviter les doublons d'aide pour une même parcelle
     if (!aides.includes(rule.aide)) aides.push(rule.aide);
+    
+    // Si on a trouvé une aide pour cette parcelle, on s'arrête ?
+    // NON ! Selon la notice, une parcelle ne peut être éligible qu'à une seule aide couplée.
+    // Mais plusieurs règles peuvent correspondre (ex: graines + fourragères).
+    // Pour respecter la notice, on ne garde que la première aide trouvée (priorité à l'aide graines/déshydratation)
+    if (aides.length === 1) {
+      // On a trouvé une aide, on ne cherche pas d'autre aide pour cette parcelle
+      // car une parcelle ne peut être éligible qu'à une seule aide couplée
+      return aides;
+    }
   }
 
   return aides;
 }
 
 // ===================================================
-// RENDU HTML
+// RENDU HTML (identique à la version précédente)
 // ===================================================
 export function renderEligibilite(xmlDoc) {
   console.log('renderEligibilite appelé, xmlDoc =', xmlDoc ? 'présent' : 'null');
@@ -281,7 +345,7 @@ export function renderEligibilite(xmlDoc) {
   if (!tbody) return;
 
   if (parcellesWithAides.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#aaa">✅ Aucune parcelle éligible aux aides couplées végétales</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:#aaa">✅ Aucune parcelle éligible aux aides couplées végétales</td>' + '</tr>';
     return;
   }
 
@@ -290,7 +354,6 @@ export function renderEligibilite(xmlDoc) {
       `<span style="background:#2a7f3a;color:white;padding:3px 10px;border-radius:40px;font-size:0.7rem;font-weight:600;display:inline-block;margin:2px">${a}</span>`
     ).join('');
 
-    // Indicateurs semences/déshydratation pour info
     const flags = [
       p.productionSemences ? '🌱 Sem. certifiées' : null,
       p.productionFermiers ? '🌾 Sem. fermières'  : null,
