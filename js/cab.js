@@ -77,11 +77,6 @@ export function renderCab() {
           <td>${escHtml(e.commune || '—')}</td>
           <td style="text-align:right;font-weight:600">${e.area_ha ? e.area_ha.toFixed(2).replace('.', ',') + ' ha' : '—'}</td>
           <td style="text-align:center">
-            <span style="background:${e.cultures_annuelles === 'true' ? '#d0eaff' : '#d4f0d4'};color:${e.cultures_annuelles === 'true' ? '#1a5080' : '#2a6b2f'};padding:2px 8px;border-radius:12px;font-weight:600;font-size:0.8rem">
-              ${e.cultures_annuelles === 'true' ? '🌾 Annuelles' : '🌿 Prairies / PP'}
-            </span>
-          </td>
-          <td style="text-align:center">
             <span style="background:${typeBioBg};color:${typeBioColor};padding:2px 10px;border-radius:12px;font-weight:600;font-size:0.8rem">
               ${escHtml(typeBioLabel)}
             </span>
@@ -128,7 +123,6 @@ export function renderCab() {
                 <th style="text-align:center">N° Élément</th>
                 <th>Commune</th>
                 <th style="text-align:right">Surface engagée</th>
-                <th style="text-align:center">Type cultures</th>
                 <th style="text-align:center">Stade bio</th>
                 <th style="text-align:center">1ère campagne</th>
                 <th style="text-align:center">Fin engagement</th>
@@ -139,7 +133,7 @@ export function renderCab() {
               <tr style="background:#eef5ea;font-weight:700">
                 <td colspan="3" style="padding:8px 10px;text-align:right">Total</td>
                 <td style="padding:8px 10px;text-align:right">${haTot.toFixed(2).replace('.', ',')} ha</td>
-                <td colspan="4"></td>
+                <td colspan="3"></td>
               </tr>
             </tfoot>
           </table>
