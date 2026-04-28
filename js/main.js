@@ -15,6 +15,7 @@ import { setSNAdata, renderSNA, filterSNA, sortSNA } from './sna.js';
 import { setDocN, renderComparaison, resetComparaison, setIlotsN } from './comparaison.js';
 import { renderEligibilite } from './eligibilite.js';
 import { setBCAE7Data, renderBCAE7 } from './bcae7.js';
+import { setCabData, renderCab } from './cab.js';
 
 // ===================================================
 // VARIABLES GLOBALES
@@ -45,6 +46,7 @@ function renderApp(data) {
   setData(allRows);
   setEcoData(allRows);
   setMaecData(allMaecRows);
+  setCabData(data.cabRows || []);
   setIlotsData(allRows);
   setIlotsN(allRows);     
   setBCAE7Data(allRows);
@@ -74,6 +76,7 @@ function renderApp(data) {
   renderEcoregime();
   renderIlots();
   renderMaec();
+  renderCab();
   renderBalises();
   renderPP();
   renderAides(lastXmlDoc);

@@ -162,6 +162,70 @@ console.log('Tous les SNA :', snaList);
 }
 
 // ===================================================
+// PARSING CAB — Éléments-bio (engagements bio)
+// ===================================================
+function parseCabRows(ilots, NS, GML, extractLambertPtsLocal, shoelaceHaLocal) {
+  const cabRows = [];
+
+  for (const ilot of ilots) {
+    const iNum = ilot.getAttribute('numero-ilot') || '';
+    const com  = ilot.getElementsByTagNameNS(NS, 'commune')[0]?.textContent.trim() || '';
+
+    // Récupérer le stade bio par numéro de parcelle
+    const bioByParc = new Map();
+    for (const parc of ilot.getElementsByTagNameNS(NS, 'parcelle')) {
+      const desc = parc.getElementsByTagNameNS(NS, 'descriptif-parcelle')[0];
+      if (!desc) continue;
+      const numParc = desc.getAttribute('numero-parcelle') || '';
+      const bioEl   = desc.getElementsByTagNameNS(NS, 'agri-bio')[0];
+      if (bioEl) {
+        bioByParc.set(numParc, {
+          conduite: bioEl.getAttribute('conduite-bio') || '',
+          type:     bioEl.getAttribute('type-conduite-bio') || '',
+        });
+      }
+    }
+
+    // Éléments-bio
+    const elemsBioContainer = ilot.getElementsByTagNameNS(NS, 'elements-bio')[0];
+    if (!elemsBioContainer) continue;
+
+    for (const elem of elemsBioContainer.getElementsByTagNameNS(NS, 'element-bio')) {
+      const getT = (tag) =>
+        elem.getElementsByTagNameNS(NS, tag)[0]?.textContent?.trim() || null;
+
+      const numeroElem   = getT('numero-element') || '?';
+      const codeMesure   = getT('code-mesure')    || '?';
+      const cultAnn      = getT('cultures-annuelles') || 'false';
+      const premCampagne = getT('premiere-campagne');
+      const dernCampagne = getT('derniere-campagne');
+
+      // Surface calculée (Shoelace Lambert 93)
+      const gc  = elem.getElementsByTagNameNS(GML, 'coordinates')[0];
+      const pts = gc ? extractLambertPtsLocal(gc) : [];
+      const area_ha = pts.length >= 3 ? shoelaceHaLocal(pts) : null;
+
+      // Stade bio : correspondance numéro élément → parcelle, sinon première disponible
+      const bio = bioByParc.get(numeroElem) || [...bioByParc.values()][0] || null;
+
+      cabRows.push({
+        ilot_num:          iNum,
+        commune:           com,
+        numero_element:    numeroElem,
+        code_mesure:       codeMesure,
+        cultures_annuelles: cultAnn,
+        premiere_campagne: premCampagne,
+        derniere_campagne: dernCampagne,
+        type_bio:          bio?.type || '',
+        area_ha,
+      });
+    }
+  }
+
+  return cabRows;
+}
+
+// ===================================================
 // PARSING PRINCIPAL
 // ===================================================
 export function parseXML(xmlString) {
@@ -213,6 +277,10 @@ export function parseXML(xmlString) {
 
   const ilots = xmlDoc.getElementsByTagNameNS(NS, 'ilot');
   console.log(`Îlots trouvés : ${ilots.length}`);
+  // Parsing CAB (éléments-bio)
+  const cabRows = parseCabRows(ilots, NS, GML, extractLambertPts, shoelaceHa);
+  console.log(`Éléments-bio CAB extraits : ${cabRows.length}`);
+
 
   for (const ilot of ilots) {
     const iNum = ilot.getAttribute('numero-ilot') || '';
@@ -391,6 +459,7 @@ export function parseXML(xmlString) {
     meta,
     rows,
     maecRows,
+    cabRows,
     ilotsGeo: Array.from(ilotsMap.values()),
     parcelsGeo: parcelsList,
     maecGeo: { surfaciques: maecSurf, lineaires: maecLine, ponctuelles: maecPoint },
