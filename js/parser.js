@@ -6,9 +6,46 @@ proj4.defs(
   "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
 );
 
+// js/parser.js - Fonction convertToLatLng corrigée
+
 export function convertToLatLng(x, y) {
-  const [lon, lat] = proj4("EPSG:2154", "EPSG:4326", [parseFloat(x), parseFloat(y)]);
-  return [lat, lon];
+  const xNum = parseFloat(x);
+  const yNum = parseFloat(y);
+  
+  // Si les coordonnées sont déjà en degrés WGS84 (France métro: lat 41-51, lon -5-10)
+  if (Math.abs(xNum) < 180 && Math.abs(yNum) < 90) {
+    // Déjà en degrés, mais vérifier l'ordre
+    // En général les fichiers PAC stockent (longitude, latitude)
+    // Leaflet attend [latitude, longitude]
+    console.log(`Coordonnées en degrés: (${xNum}, ${yNum}) -> lat=${yNum}, lng=${xNum}`);
+    return [yNum, xNum];
+  }
+  
+  // UTM zone 40S (océan Indien) - à ne PAS utiliser pour la métropole
+  // Détecter si c'est du Lambert 93 (métropole)
+  // Lambert 93: X entre 0 et 1 200 000, Y entre 6 000 000 et 7 200 000
+  const isLambert93 = (xNum >= 0 && xNum <= 1200000 && yNum >= 6000000 && yNum <= 7200000);
+  
+  if (isLambert93) {
+    try {
+      const [lon, lat] = proj4("EPSG:2154", "EPSG:4326", [xNum, yNum]);
+      console.log(`Lambert93 (${xNum}, ${yNum}) -> WGS84 (${lat}, ${lon})`);
+      return [lat, lon];
+    } catch (e) {
+      console.error('Erreur conversion Lambert93:', e);
+      return [yNum, xNum];
+    }
+  }
+  
+  // Autres projections (UTM, etc.)
+  const projCode = detectProjection(xNum, yNum);
+  try {
+    const [lon, lat] = proj4(projCode, "EPSG:4326", [xNum, yNum]);
+    return [lat, lon];
+  } catch (e) {
+    console.error(`Erreur conversion ${projCode}:`, e);
+    return [yNum, xNum];
+  }
 }
 
 export function parseGmlPolygon(gmlString) {

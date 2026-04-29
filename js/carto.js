@@ -520,28 +520,61 @@ function _maecPopup(titre, maec) {
     Campagnes : ${campagnes}
   `;
 }
+// js/carto.js - Partie modifiée (fonction _fitBounds)
 
 function _fitBounds(allLatLngs, parcelsGeo) {
   const valid = allLatLngs.filter(Boolean);
+  
+  // Debug : afficher les coordonnées pour vérifier
+  if (valid.length > 0) {
+    console.log('Premier point valide:', valid[0]);
+    console.log('Tous les points:', valid.slice(0, 5));
+  }
+  
   if (valid.length === 0) {
-    const first = parcelsGeo[0]?.geom?.[0];
-    if (first) { const c = _parseCoord(first); if (c) { currentMap.setView(c, 14); return; } }
-    currentMap.setView([46.5, 2.5], 7);
+    // Points de test pour la France métropolitaine
+    const fallbackBounds = L.latLngBounds(
+      [41.3, -4.8],  // Sud-Ouest (Corse/Espagne)
+      [51.1, 9.6]    // Nord-Est (Belgique/Allemagne)
+    );
+    currentMap.fitBounds(fallbackBounds, { padding: [40, 40] });
+    console.warn('Aucun point valide, centrage sur France métropolitaine');
     return;
   }
+  
   try {
     const bounds = L.latLngBounds(valid);
-    if (!bounds.isValid()) { currentMap.setView([46.5, 2.5], 8); return; }
+    if (!bounds.isValid()) {
+      const fallbackBounds = L.latLngBounds([41.3, -4.8], [51.1, 9.6]);
+      currentMap.fitBounds(fallbackBounds);
+      return;
+    }
+    
+    // Vérifier si les coordonnées sont cohérentes avec la France
+    // France métro : lat entre 41° et 51°, lon entre -5° et 10°
+    const center = bounds.getCenter();
+    const isInFrance = center.lat >= 41 && center.lat <= 51 && center.lng >= -5 && center.lng <= 10;
+    
+    if (!isInFrance && valid.length > 0) {
+      console.warn(`Coordonnées suspectes: centre à [${center.lat}, ${center.lng}] - tentative de correction UTM`);
+      // Potentiellement les coordonnées sont en UTM mais mal converties
+    }
+    
     const latDiff = Math.abs(bounds.getNorth() - bounds.getSouth());
     const lngDiff = Math.abs(bounds.getEast()  - bounds.getWest());
+    
     if (latDiff < 0.0005 && lngDiff < 0.0005) {
       currentMap.setView(bounds.getCenter(), 17);
     } else {
       currentMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
     }
+    
+    console.log('Carte centrée sur:', bounds.getCenter());
+    
   } catch (e) {
-    console.warn('Erreur bounds :', e);
-    currentMap.setView([46.5, 2.5], 8);
+    console.warn('Erreur bounds:', e);
+    const fallbackBounds = L.latLngBounds([41.3, -4.8], [51.1, 9.6]);
+    currentMap.fitBounds(fallbackBounds);
   }
 }
 
