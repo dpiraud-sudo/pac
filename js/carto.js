@@ -1,706 +1,508 @@
-// js/carto.js - Version corrigée (sans doublons)
-import { getCultureColor } from './data.js';
+// js/parser.js - Version corrigée pour Lambert 93 (France métro)
+import { lookup } from './data.js';
 
-let currentMap = null;
-let currentIlotGroup    = null;
-let currentParcelGroup  = null;
-let currentMaecSGroup   = null;
-let currentMaecSLGroup  = null;
-let currentMaecPGroup   = null;
+// Projection Lambert 93 (France métropolitaine)
+proj4.defs(
+  "EPSG:2154",
+  "+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+);
 
-// ── Couches SNA par type ──────────────────────────────
-let snaLayerGroups = {};   // { "V4": L.layerGroup, ... }
-let snaData        = [];   // copie pour filtres
+// Projection UTM zone 40S (océan Indien - Mayotte, La Réunion)
+proj4.defs(
+  "EPSG:32740",
+  "+proj=utm +zone=40 +south +datum=WGS84 +units=m +no_defs"
+);
 
-// ===================================================
-// RESET
-// ===================================================
-export function resetMap() {
-  if (currentMap) {
-    currentMap.remove();
-    currentMap = null;
+// Détection automatique de la projection
+function detectProjection(x, y) {
+  // Lambert 93: X entre 0 et 1 200 000, Y entre 6 000 000 et 7 200 000
+  if (x >= 0 && x <= 1200000 && y >= 6000000 && y <= 7200000) {
+    return "EPSG:2154";
   }
-  currentIlotGroup   = null;
-  currentParcelGroup = null;
-  currentMaecSGroup  = null;
-  currentMaecSLGroup = null;
-  currentMaecPGroup  = null;
-  snaLayerGroups     = {};
-  snaData            = [];
+  // UTM zone 40S (océan Indien)
+  else if (x >= 100000 && x <= 999999 && y >= -10000000 && y <= -100000) {
+    return "EPSG:32740";
+  }
+  // Par défaut, si coordonnées petites -> déjà en degrés
+  else if (Math.abs(x) < 180 && Math.abs(y) < 90) {
+    return "EPSG:4326";
+  }
+  // Par défaut Lambert 93 pour la France
+  return "EPSG:2154";
 }
 
-// ===================================================
-// PARSING DES COORDONNÉES (unique)
-// ===================================================
-function _parseCoord(coordStr) {
-  if (!coordStr) return null;
-  
-  // Si c'est déjà un objet avec lat/lng
-  if (typeof coordStr === 'object' && coordStr.lat !== undefined) {
-    return [coordStr.lat, coordStr.lng];
-  }
-  
-  // Si c'est un tableau [x, y]
-  if (Array.isArray(coordStr) && coordStr.length === 2) {
-    if (typeof coordStr[0] === 'number' && typeof coordStr[1] === 'number') {
-      return [coordStr[1], coordStr[0]];
-    }
-  }
-  
-  // Si c'est une chaîne "x, y" ou "x,y"
-  if (typeof coordStr === 'string') {
-    const parts = coordStr.split(',').map(p => parseFloat(p.trim()));
-    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-      return [parts[1], parts[0]];
-    }
-  }
-  
-  return null;
-}
-
-function _parseGeometry(coordsArray) {
-  if (!coordsArray || !Array.isArray(coordsArray)) return null;
-  
-  const points = [];
-  for (const coord of coordsArray) {
-    const ll = _parseCoord(coord);
-    if (ll) points.push(ll);
-  }
-  
-  return points.length >= 2 ? points : null;
-}
-
-// ===================================================
-// COULEURS / STYLES SNA
-// ===================================================
-const SNA_CATEGORIE_STYLE = {
-  EA: { color: '#0277bd', fill: '#b3e5fc', label: '🏗️ Espace artificialisé' },
-  AT: { color: '#bf360c', fill: '#ffccbc', label: '🌲 Autre terre'          },
-  VG: { color: '#2e7d32', fill: '#c8e6c9', label: '🌳 Végétation'           }
-};
-
-const SNA_TYPE_LABELS = {
-  B1: 'Bâtiment',
-  B2: 'Route, chemin ou voie ferrée',
-  B3: 'Surface aménagée',
-  A1: 'Mare',
-  A2: 'Surface en eau non maçonnée (hors mare)',
-  A3: 'Surface en eau maçonnée',
-  A4: 'Fossé non maçonné',
-  A5: 'Fossé maçonné',
-  A6: 'Affleurement rocheux',
-  A7: 'Mur traditionnel en pierre (IAE)',
-  V1: 'Arbre isolé',
-  V2: 'Arbres alignés',
-  V3: 'Bosquet',
-  V4: 'Haie',
-  V5: 'Forêt',
-  V6: 'Broussailles',
-  V7: 'Autre surface végétale non agricole',
-  V8: 'Végétation non agricole non caractérisée'
-};
-
-function _getCatFromType(typeCode) {
-  if (!typeCode) return 'AT';
-  const c = typeCode[0];
-  if (c === 'B') return 'EA';
-  if (c === 'V') return 'VG';
-  return 'AT';
-}
-
-function _getSnaStyle(sna) {
-  const cat = sna.categorieSna || _getCatFromType(sna.typeSna);
-  return SNA_CATEGORIE_STYLE[cat] || SNA_CATEGORIE_STYLE.AT;
-}
-
-// ===================================================
-// INIT MAP
-// ===================================================
-export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
-  resetMap();
-  snaData = snaList;
-
-  currentMap = L.map('map').setView([46.5, 2.5], 6);
-
-  var cartoDB = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> & CartoDB',
-    subdomains: 'abcd', maxZoom: 19, minZoom: 6
-  });
-  var googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
-    maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'], attribution: '© Google'
-  });
-  var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
-    maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'], attribution: '© Google'
-  });
-  var esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: '© ESRI', maxZoom: 24
-  });
-
-  L.control.layers({
-    "🗺️ Carte classique": cartoDB,
-    "🛰️ Satellite": googleSat,
-    "🛰️ Hybride": googleHybrid,
-    "🛰️ ESRI": esriSat
-  }).addTo(currentMap);
-
-  cartoDB.addTo(currentMap);
-
-  currentIlotGroup   = L.layerGroup().addTo(currentMap);
-  currentParcelGroup = L.layerGroup().addTo(currentMap);
-  currentMaecSGroup  = L.layerGroup().addTo(currentMap);
-  currentMaecSLGroup = L.layerGroup().addTo(currentMap);
-  currentMaecPGroup  = L.layerGroup().addTo(currentMap);
-
-  let allLatLngs = [];
-  let parcelCount = 0;
-  let maecCount   = 0;
-
-  // ─── 1. ÎLOTS ────────────────────────────────────
-  ilotsGeo.forEach(ilot => {
-    const parsedGeom = _parseGeometry(ilot.geom);
-    if (!parsedGeom || parsedGeom.length < 3) return;
-    const poly = L.polygon(parsedGeom, {
-      color: '#9e9e9e', weight: 2, opacity: 0.7,
-      fillOpacity: 0.1, fillColor: '#bdbdbd'
-    });
-    poly.addTo(currentIlotGroup);
-    poly.bindPopup(`<b>🏷️ Îlot ${ilot.numero}</b><br>Référence : ${ilot.reference || '—'}`);
-    parsedGeom.forEach(ll => allLatLngs.push(ll));
-  });
-
-  // ─── 2. PARCELLES ────────────────────────────────
-  parcelsGeo.forEach(parcel => {
-    const parsedGeom = _parseGeometry(parcel.geom);
-    if (!parsedGeom || parsedGeom.length < 3) return;
-    parcelCount++;
-    const colors = getCultureColor(parcel.culture);
-    const poly = L.polygon(parsedGeom, {
-      color: colors.color, weight: 2, opacity: 0.8,
-      fillOpacity: 0.4, fillColor: colors.fill
-    });
-    poly.addTo(currentParcelGroup);
-    const surfHa = parcel.surface ? (parseFloat(parcel.surface) / 100).toFixed(2) : '?';
-    poly.bindPopup(`
-      <b>🌾 ${parcel.culture}</b><br>
-      Îlot : ${parcel.ilot} | Parcelle : ${parcel.parcelle}<br>
-      Surface : ${surfHa.replace('.', ',')} ha
-    `);
-    parsedGeom.forEach(ll => allLatLngs.push(ll));
-  });
-
-  // ─── 3. MAEC ─────────────────────────────────────
-  const allMaec = [
-    ...(maecGeo.surfaciques || []),
-    ...(maecGeo.lineaires || []),
-    ...(maecGeo.ponctuelles || [])
-  ];
-
-  allMaec.forEach(maec => {
-    const type = (maec.sousType || '').toUpperCase();
-
-    if (type === 'S') {
-      const parsedGeom = _parseGeometry(maec.geom);
-      if (!parsedGeom || parsedGeom.length < 3) return;
-      maecCount++;
-      const poly = L.polygon(parsedGeom, {
-        color: '#2e7d32', weight: 2, opacity: 0.9,
-        fillOpacity: 0.30, fillColor: '#66bb6a', dashArray: '6, 4'
-      });
-      poly.addTo(currentMaecSGroup);
-      poly.bindPopup(_maecPopup('🟢 MAEC Surfacique', maec));
-      parsedGeom.forEach(ll => allLatLngs.push(ll));
-
-    } else if (type === 'SL') {
-      const parsedGeom = _parseGeometry(maec.geom);
-      if (!parsedGeom || parsedGeom.length < 2) return;
-      maecCount++;
-      const poly = L.polygon(parsedGeom, {
-        color: '#e65100', weight: 3, opacity: 0.95,
-        fillOpacity: 0.50, fillColor: '#ff8c00'
-      });
-      poly.addTo(currentMaecSLGroup);
-      poly.bindPopup(_maecPopup('🟠 MAEC Linéaire (SL)', maec));
-      parsedGeom.forEach(ll => allLatLngs.push(ll));
-
-    } else if (type === 'L') {
-      const parsedGeom = _parseGeometry(maec.geom);
-      if (!parsedGeom || parsedGeom.length < 2) return;
-      maecCount++;
-      const line = L.polyline(parsedGeom, {
-        color: '#e65100', weight: 4, opacity: 0.95, dashArray: '10, 4'
-      });
-      line.addTo(currentMaecSLGroup);
-      line.bindPopup(_maecPopup('🟠 MAEC Linéaire', maec));
-      parsedGeom.forEach(ll => allLatLngs.push(ll));
-
-    } else if (type === 'P') {
-      const ll = _parseCoord(maec.geom);
-      if (!ll) return;
-      maecCount++;
-      const marker = L.circleMarker(ll, {
-        radius: 9, color: '#b71c1c', weight: 2, opacity: 0.95,
-        fillOpacity: 0.80, fillColor: '#ef5350'
-      });
-      marker.addTo(currentMaecPGroup);
-      marker.bindPopup(_maecPopup('🔴 MAEC Ponctuelle', maec));
-      allLatLngs.push(ll);
-
-    } else {
-      const parsedGeom = _parseGeometry(maec.geom);
-      if (parsedGeom && parsedGeom.length >= 3) {
-        maecCount++;
-        const poly = L.polygon(parsedGeom, {
-          color: '#1e88e5', weight: 2, opacity: 0.8,
-          fillOpacity: 0.25, fillColor: '#42a5f5', dashArray: '5, 5'
-        });
-        poly.addTo(currentMaecSGroup);
-        poly.bindPopup(_maecPopup('🌿 MAEC', maec));
-        parsedGeom.forEach(ll => allLatLngs.push(ll));
-      }
-    }
-  });
-
-  // ─── 4. SNA ──────────────────────────────────────
-  _buildSnaLayers(snaList);
-
-  _fitBounds(allLatLngs, parcelsGeo);
-  _updateLegend(parcelsGeo, ilotsGeo, maecGeo, maecCount, snaList);
-
-  const statsSpan = document.getElementById('map-stats');
-  if (statsSpan) {
-    statsSpan.innerHTML =
-      `📍 ${ilotsGeo.length} îlot(s) | 🌾 ${parcelCount} parcelle(s) | 🌿 ${maecCount} MAEC | 🏗️ ${snaList.length} SNA`;
-  }
-
-  _setupLayerControls();
-  _buildSnaFilterUI(snaList);
-}
-
-// ===================================================
-// SNA — CONSTRUCTION DES COUCHES
-// ===================================================
-function _buildSnaLayers(snaList) {
-  snaLayerGroups = {};
-
-  for (const sna of snaList) {
-    const typeCode = sna.typeSna || 'XX';
-    if (!snaLayerGroups[typeCode]) {
-      snaLayerGroups[typeCode] = L.layerGroup().addTo(currentMap);
-    }
-
-    const style = _getSnaStyle(sna);
-    const popup = _snaPopup(sna);
-
-    // Géométrie surfacique
-    if (sna.geom && Array.isArray(sna.geom) && sna.geom.length >= 3) {
-      const parsedGeom = _parseGeometry(sna.geom);
-      if (parsedGeom && parsedGeom.length >= 3) {
-        const poly = L.polygon(parsedGeom, {
-          color: style.color, weight: 2, opacity: 0.9,
-          fillOpacity: 0.40, fillColor: style.fill, dashArray: '4, 3'
-        });
-        poly.bindPopup(popup);
-        poly.addTo(snaLayerGroups[typeCode]);
-      }
-    }
-    // Géométrie linéaire
-    else if (sna.geomLine && Array.isArray(sna.geomLine) && sna.geomLine.length >= 2) {
-      const parsedGeom = _parseGeometry(sna.geomLine);
-      if (parsedGeom && parsedGeom.length >= 2) {
-        const line = L.polyline(parsedGeom, {
-          color: style.color, weight: 4, opacity: 0.9, dashArray: '8, 4'
-        });
-        line.bindPopup(popup);
-        line.addTo(snaLayerGroups[typeCode]);
-      }
-    }
-    // Géométrie ponctuelle
-    else if (sna.geomPoint) {
-      const ll = _parseCoord(sna.geomPoint);
-      if (ll) {
-        const marker = L.circleMarker(ll, {
-          radius: 8, color: style.color, weight: 2, opacity: 0.95,
-          fillOpacity: 0.80, fillColor: style.fill
-        });
-        marker.bindPopup(popup);
-        marker.addTo(snaLayerGroups[typeCode]);
-      }
-    }
-  }
-}
-
-// ===================================================
-// SNA — POPUP
-// ===================================================
-function _snaPopup(sna) {
-  const cat     = sna.categorieSna || _getCatFromType(sna.typeSna) || '—';
-  const style   = SNA_CATEGORIE_STYLE[cat] || SNA_CATEGORIE_STYLE.AT;
-  const typeLib = SNA_TYPE_LABELS[sna.typeSna] || sna.typeSna || '—';
-  const surfHa  = sna.surfaceGraphique ? sna.surfaceGraphique.toFixed(4).replace('.', ',') : '—';
-  const ilots   = sna.ilots?.length ? sna.ilots.join(', ') : '—';
-  const largeur  = sna.largeurCalculee ? sna.largeurCalculee.toFixed(1).replace('.', ',') + ' m' : null;
-  const longueur = sna.longueurIae    ? sna.longueurIae.toFixed(0).replace('.', ',') + ' m'     : null;
-  const date     = sna.dateMiseAjour  ? `<br><span style="color:#888;font-size:0.75rem">MAJ : ${sna.dateMiseAjour}</span>` : '';
-
-  return `
-    <div style="min-width:210px;font-size:0.85rem;line-height:1.7">
-      <div style="margin-bottom:6px">
-        <span style="background:${style.fill};color:${style.color};padding:2px 10px;border-radius:10px;
-          font-size:0.78rem;font-weight:700;border:1px solid ${style.color}">${style.label}</span>
-      </div>
-      <b>N° SNA :</b> ${sna.numeroSna || '—'}<br>
-      <b>Type :</b> <code>${sna.typeSna}</code> — ${typeLib}<br>
-      <b>Surface :</b> ${surfHa} ha<br>
-      ${largeur  ? `<b>Largeur :</b> ${largeur}<br>` : ''}
-      ${longueur ? `<b>Longueur IAE :</b> ${longueur}<br>` : ''}
-      <b>Îlot(s) :</b> ${ilots}
-      ${sna.parcelleAssociee ? `<br><b>Parcelle :</b> ${sna.parcelleAssociee}` : ''}
-      ${date}
-    </div>
-  `;
-}
-
-// ===================================================
-// SNA — FILTRES DANS LA CARTE
-// ===================================================
-function _buildSnaFilterUI(snaList) {
-  const container = document.getElementById('sna-map-filters');
-  if (!container) return;
-
-  if (!snaList.length) {
-    container.innerHTML = '<span style="color:#aaa;font-size:0.8rem;padding:4px 0;display:block">Aucune SNA dans ce fichier</span>';
-    return;
-  }
-
-  // Regrouper par catégorie > type
-  const byCategorie = {};
-  for (const sna of snaList) {
-    const cat  = sna.categorieSna || _getCatFromType(sna.typeSna) || 'AT';
-    const type = sna.typeSna || 'XX';
-    if (!byCategorie[cat]) byCategorie[cat] = {};
-    byCategorie[cat][type] = (byCategorie[cat][type] || 0) + 1;
-  }
-
-  const catOrder = ['EA', 'AT', 'VG'];
-
-  let catHtml = '';
-  for (const cat of catOrder) {
-    if (!byCategorie[cat]) continue;
-    const catStyle = SNA_CATEGORIE_STYLE[cat] || SNA_CATEGORIE_STYLE.AT;
-    const types    = Object.entries(byCategorie[cat]);
-    const total    = types.reduce((s, [, n]) => s + n, 0);
-
-    catHtml += `
-      <div class="sna-filter-cat">
-        <div class="sna-filter-cat-header" style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #e8f0e5;margin-bottom:4px">
-          <input type="checkbox" class="sna-cat-cb" data-cat="${cat}" checked
-            style="width:14px;height:14px;cursor:pointer;accent-color:${catStyle.color}">
-          <span style="background:${catStyle.fill};color:${catStyle.color};border:1px solid ${catStyle.color};
-            padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:700;flex:1;cursor:pointer"
-            onclick="this.previousElementSibling.click()">${catStyle.label}</span>
-          <span style="color:#999;font-size:0.72rem;white-space:nowrap">${total} SNA</span>
-          <button class="sna-cat-toggle" data-cat="${cat}"
-            style="background:none;border:none;cursor:pointer;color:#557055;font-size:0.75rem;padding:0 2px;line-height:1">▼</button>
-        </div>
-        <div class="sna-types-list" id="sna-types-${cat}" style="padding-left:6px">
-          ${types.map(([typeCode, count]) => `
-            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:2px 0;font-size:0.76rem;color:#2a3a2a">
-              <input type="checkbox" class="sna-type-cb" data-type="${typeCode}" data-cat="${cat}" checked
-                style="width:12px;height:12px;cursor:pointer;accent-color:${catStyle.color}">
-              <code style="font-weight:700;color:${catStyle.color};font-size:0.75rem;min-width:22px">${typeCode}</code>
-              <span style="flex:1;color:#445">${SNA_TYPE_LABELS[typeCode] || typeCode}</span>
-              <span style="color:#bbb;font-size:0.7rem;white-space:nowrap">(${count})</span>
-            </label>
-          `).join('')}
-        </div>
-      </div>
-    `;
-  }
-
-  container.innerHTML = `
-    <div style="display:flex;gap:5px;margin-bottom:8px">
-      <button id="sna-all-btn"
-        style="flex:1;padding:3px 6px;border-radius:20px;border:1px solid #b8d4b8;background:#eef5ea;
-               color:#1f5422;font-size:0.72rem;cursor:pointer;font-weight:600">✅ Tous</button>
-      <button id="sna-none-btn"
-        style="flex:1;padding:3px 6px;border-radius:20px;border:1px solid #e0b8b8;background:#fef0f0;
-               color:#b91c1c;font-size:0.72rem;cursor:pointer;font-weight:600">❌ Aucun</button>
-    </div>
-    <div style="font-size:0.72rem;color:#557055;margin-bottom:6px;text-align:right">
-      <span id="sna-map-count">${snaList.length} / ${snaList.length} affichées</span>
-    </div>
-    ${catHtml}
-  `;
-
-  // ── Événements ──
-  container.querySelectorAll('.sna-type-cb').forEach(cb => {
-    cb.addEventListener('change', () => _applySnaFilter(container));
-  });
-
-  container.querySelectorAll('.sna-cat-cb').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const cat = cb.dataset.cat;
-      container.querySelectorAll(`.sna-type-cb[data-cat="${cat}"]`).forEach(t => {
-        t.checked = cb.checked;
-      });
-      _applySnaFilter(container);
-    });
-  });
-
-  container.querySelectorAll('.sna-cat-toggle').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const cat  = btn.dataset.cat;
-      const list = document.getElementById(`sna-types-${cat}`);
-      if (!list) return;
-      const collapsed = list.style.display === 'none';
-      list.style.display = collapsed ? '' : 'none';
-      btn.textContent    = collapsed ? '▼' : '▶';
-    });
-  });
-
-  document.getElementById('sna-all-btn')?.addEventListener('click', () => {
-    container.querySelectorAll('.sna-type-cb, .sna-cat-cb').forEach(cb => cb.checked = true);
-    _applySnaFilter(container);
-  });
-
-  document.getElementById('sna-none-btn')?.addEventListener('click', () => {
-    container.querySelectorAll('.sna-type-cb, .sna-cat-cb').forEach(cb => cb.checked = false);
-    _applySnaFilter(container);
-  });
-}
-
-function _applySnaFilter(container) {
-  const activeTypes = new Set();
-  container.querySelectorAll('.sna-type-cb:checked').forEach(cb => activeTypes.add(cb.dataset.type));
-
-  let visibleCount = 0;
-  for (const [typeCode, group] of Object.entries(snaLayerGroups)) {
-    if (!currentMap) continue;
-    if (activeTypes.has(typeCode)) {
-      if (!currentMap.hasLayer(group)) group.addTo(currentMap);
-      visibleCount += group.getLayers ? group.getLayers().length : 0;
-    } else {
-      if (currentMap.hasLayer(group)) group.remove();
-    }
-  }
-
-  // Mettre à jour état indeterminate des catégories
-  container.querySelectorAll('.sna-cat-cb').forEach(catCb => {
-    const cat     = catCb.dataset.cat;
-    const typeCbs = [...container.querySelectorAll(`.sna-type-cb[data-cat="${cat}"]`)];
-    const all     = typeCbs.every(t => t.checked);
-    const some    = typeCbs.some(t => t.checked);
-    catCb.checked       = all;
-    catCb.indeterminate = !all && some;
-  });
-
-  const countEl = document.getElementById('sna-map-count');
-  if (countEl) countEl.textContent = `${visibleCount} / ${snaData.length} affichées`;
-}
-
-// ===================================================
-// HELPERS PRIVÉS
-// ===================================================
-function _maecPopup(titre, maec) {
-  const num      = maec.numero    || '—';
-  const code     = maec.code      || '—';
-  const sousType = maec.sousType  || '—';
-  const debut    = maec.premiereC || null;
-  const fin      = maec.derniereC || null;
-  let campagnes;
-  if (debut && fin)   campagnes = `${debut} → ${fin}`;
-  else if (debut)     campagnes = `Depuis ${debut}`;
-  else if (fin)       campagnes = `Jusqu'en ${fin}`;
-  else                campagnes = `<em style="color:#e65100">⚠️ Élément modifié</em>`;
-  return `
-    <b>${titre}</b><br>
-    Numéro élément : <b>${num}</b><br>
-    Code mesure : ${code}<br>
-    Sous-type : ${sousType}<br>
-    Campagnes : ${campagnes}
-  `;
-}
-// js/carto.js - Partie modifiée (fonction _fitBounds)
-
-function _fitBounds(allLatLngs, parcelsGeo) {
-  const valid = allLatLngs.filter(Boolean);
-  
-  // Debug : afficher les coordonnées pour vérifier
-  if (valid.length > 0) {
-    console.log('Premier point valide:', valid[0]);
-    console.log('Tous les points:', valid.slice(0, 5));
-  }
-  
-  if (valid.length === 0) {
-    // Points de test pour la France métropolitaine
-    const fallbackBounds = L.latLngBounds(
-      [41.3, -4.8],  // Sud-Ouest (Corse/Espagne)
-      [51.1, 9.6]    // Nord-Est (Belgique/Allemagne)
-    );
-    currentMap.fitBounds(fallbackBounds, { padding: [40, 40] });
-    console.warn('Aucun point valide, centrage sur France métropolitaine');
-    return;
-  }
+export function convertToLatLng(x, y) {
+  const xNum = parseFloat(x);
+  const yNum = parseFloat(y);
+  const projCode = detectProjection(xNum, yNum);
   
   try {
-    const bounds = L.latLngBounds(valid);
-    if (!bounds.isValid()) {
-      const fallbackBounds = L.latLngBounds([41.3, -4.8], [51.1, 9.6]);
-      currentMap.fitBounds(fallbackBounds);
-      return;
+    if (projCode === "EPSG:4326") {
+      // Déjà en degrés, ordre (longitude, latitude) -> [lat, lon]
+      return [yNum, xNum];
     }
     
-    // Vérifier si les coordonnées sont cohérentes avec la France
-    // France métro : lat entre 41° et 51°, lon entre -5° et 10°
-    const center = bounds.getCenter();
-    const isInFrance = center.lat >= 41 && center.lat <= 51 && center.lng >= -5 && center.lng <= 10;
+    const [lon, lat] = proj4(projCode, "EPSG:4326", [xNum, yNum]);
     
-    if (!isInFrance && valid.length > 0) {
-      console.warn(`Coordonnées suspectes: centre à [${center.lat}, ${center.lng}] - tentative de correction UTM`);
-      // Potentiellement les coordonnées sont en UTM mais mal converties
+    // Vérifier que les coordonnées sont en France métro
+    // France métro: lat entre 41° et 51°, lon entre -5° et 10°
+    if (projCode === "EPSG:2154" && (lat < 41 || lat > 51)) {
+      console.warn(`Coordonnée suspecte: (${xNum}, ${yNum}) -> (${lat}, ${lon})`);
     }
     
-    const latDiff = Math.abs(bounds.getNorth() - bounds.getSouth());
-    const lngDiff = Math.abs(bounds.getEast()  - bounds.getWest());
-    
-    if (latDiff < 0.0005 && lngDiff < 0.0005) {
-      currentMap.setView(bounds.getCenter(), 17);
-    } else {
-      currentMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 16, animate: true });
-    }
-    
-    console.log('Carte centrée sur:', bounds.getCenter());
-    
+    return [lat, lon];
   } catch (e) {
-    console.warn('Erreur bounds:', e);
-    const fallbackBounds = L.latLngBounds([41.3, -4.8], [51.1, 9.6]);
-    currentMap.fitBounds(fallbackBounds);
+    console.error(`Erreur conversion ${projCode}:`, e);
+    return [yNum, xNum];
   }
 }
 
-function _updateLegend(parcelsGeo, ilotsGeo, maecGeo, maecCount, snaList) {
-  const legendDiv = document.getElementById('map-legend-items');
-  if (!legendDiv) return;
-
-  let html = '';
-
-  // Cultures
-  const uniqueCultures = [...new Set(parcelsGeo.map(p => p.culture))];
-  const displayed = uniqueCultures.slice(0, 8);
-  if (displayed.length) {
-    html += `<div style="margin-bottom:5px"><strong>🌾 Cultures</strong></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">`;
-    displayed.forEach(c => {
-      const col = getCultureColor(c);
-      html += `<div style="display:flex;align-items:center;gap:3px">
-        <div style="background:${col.fill};width:12px;height:12px;border-radius:2px;border:1px solid ${col.color}"></div>
-        <span style="font-size:0.7rem">${c}</span>
-      </div>`;
-    });
-    html += `</div>`;
-    if (uniqueCultures.length > 8)
-      html += `<div style="font-size:0.65rem;color:#888;margin-bottom:8px">+ ${uniqueCultures.length - 8} autre(s)</div>`;
-  }
-
-  // Îlots
-  if (ilotsGeo.length) {
-    html += `<div style="margin-bottom:4px"><strong>🗺️ Limites</strong></div>
-      <div style="display:flex;align-items:center;gap:3px;margin-bottom:10px">
-        <div style="background:#9e9e9e;width:20px;height:2px"></div>
-        <span style="font-size:0.7rem">Îlots PAC (${ilotsGeo.length})</span>
-      </div>`;
-  }
-
-  // MAEC
-  if (maecCount > 0) {
-    const allMaec = [...(maecGeo.surfaciques || []), ...(maecGeo.lineaires || []), ...(maecGeo.ponctuelles || [])];
-    const countS  = allMaec.filter(m => (m.sousType || '').toUpperCase() === 'S').length;
-    const countSL = allMaec.filter(m => (m.sousType || '').toUpperCase() === 'SL').length;
-    const countL  = allMaec.filter(m => (m.sousType || '').toUpperCase() === 'L').length;
-    const countP  = allMaec.filter(m => (m.sousType || '').toUpperCase() === 'P').length;
-    html += `<div style="margin-bottom:4px"><strong>🌿 MAEC</strong></div>
-      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:10px">`;
-    if (countS)  html += `<div style="display:flex;align-items:center;gap:5px"><div style="background:#66bb6a;width:16px;height:11px;border-radius:2px;border:2px dashed #2e7d32"></div><span style="font-size:0.7rem">Surfacique S (${countS})</span></div>`;
-    if (countSL) html += `<div style="display:flex;align-items:center;gap:5px"><div style="background:#ff8c00;width:22px;height:5px;border-radius:1px"></div><span style="font-size:0.7rem">Linéaire SL (${countSL})</span></div>`;
-    if (countL)  html += `<div style="display:flex;align-items:center;gap:5px"><div style="background:#e65100;width:22px;height:4px"></div><span style="font-size:0.7rem">Linéaire L (${countL})</span></div>`;
-    if (countP)  html += `<div style="display:flex;align-items:center;gap:5px"><div style="background:#ef5350;width:10px;height:10px;border-radius:50%;border:2px solid #b71c1c"></div><span style="font-size:0.7rem">Ponctuelle P (${countP})</span></div>`;
-    html += `</div>`;
-  }
-
-  // SNA
-  if (snaList.length) {
-    const catCounts = {};
-    snaList.forEach(s => {
-      const cat = s.categorieSna || _getCatFromType(s.typeSna) || 'AT';
-      catCounts[cat] = (catCounts[cat] || 0) + 1;
-    });
-    html += `<div style="margin-bottom:4px"><strong>🏗️ SNA</strong></div>
-      <div style="display:flex;flex-direction:column;gap:4px">`;
-    for (const [cat, n] of Object.entries(catCounts)) {
-      const s = SNA_CATEGORIE_STYLE[cat] || SNA_CATEGORIE_STYLE.AT;
-      html += `<div style="display:flex;align-items:center;gap:5px">
-        <div style="background:${s.fill};width:14px;height:10px;border-radius:2px;border:2px dashed ${s.color}"></div>
-        <span style="font-size:0.7rem">${s.label} (${n})</span>
-      </div>`;
+export function parseGmlPolygon(gmlString) {
+  if (!gmlString) return null;
+  const matches = [...gmlString.matchAll(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/g)];
+  if (!matches.length) return null;
+  const ring = [];
+  for (const pair of matches[0][1].trim().split(/\s+/)) {
+    if (!pair) continue;
+    const [x, y] = pair.split(',').map(Number);
+    if (!isNaN(x) && !isNaN(y)) {
+      const latLng = convertToLatLng(x, y);
+      ring.push(latLng);
     }
-    html += `</div>`;
   }
-
-  legendDiv.innerHTML = html || 'Aucune donnée';
+  return ring.length >= 3 ? ring : null;
 }
 
-function _setupLayerControls() {
-  const toggleIlots     = document.getElementById('toggleIlots');
-  const toggleParcelles = document.getElementById('toggleParcelles');
-  const toggleMaecS     = document.getElementById('toggleMaecS');
-  const toggleMaecSL    = document.getElementById('toggleMaecSL');
-  const toggleMaecP     = document.getElementById('toggleMaecP');
-  const toggleMaec      = document.getElementById('toggleMaec');
-
-  const wire = (checkbox, group) => {
-    if (!checkbox || !group) return;
-    checkbox.checked = true;
-    checkbox.onclick = () => {
-      if (checkbox.checked) group.addTo(currentMap);
-      else group.remove();
-    };
-  };
-
-  wire(toggleIlots,     currentIlotGroup);
-  wire(toggleParcelles, currentParcelGroup);
-  wire(toggleMaecS,     currentMaecSGroup);
-  wire(toggleMaecSL,    currentMaecSLGroup);
-  wire(toggleMaecP,     currentMaecPGroup);
-
-  if (toggleMaec && !toggleMaecS) {
-    toggleMaec.checked = true;
-    toggleMaec.onclick = () => {
-      [currentMaecSGroup, currentMaecSLGroup, currentMaecPGroup].forEach(g => {
-        if (!g) return;
-        if (toggleMaec.checked) g.addTo(currentMap);
-        else g.remove();
-      });
-    };
+export function parseGmlLineString(gmlString) {
+  if (!gmlString) return null;
+  const match = gmlString.match(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/);
+  if (!match) return null;
+  const pts = [];
+  for (const pair of match[1].trim().split(/\s+/)) {
+    if (!pair) continue;
+    const [x, y] = pair.split(',').map(Number);
+    if (!isNaN(x) && !isNaN(y)) pts.push(convertToLatLng(x, y));
   }
+  return pts.length >= 2 ? pts : null;
+}
 
-  // Toggle global SNA — délègue aux filtres fins
-  const toggleSNA = document.getElementById('toggleSNA');
-  if (toggleSNA) {
-    toggleSNA.checked = true;
-    toggleSNA.onclick = () => {
-      const container = document.getElementById('sna-map-filters');
-      if (toggleSNA.checked) {
-        if (container) _applySnaFilter(container);
-        else Object.values(snaLayerGroups).forEach(g => g.addTo(currentMap));
-      } else {
-        Object.values(snaLayerGroups).forEach(g => {
-          if (currentMap.hasLayer(g)) g.remove();
+export function parseGmlPoint(gmlString) {
+  if (!gmlString) return null;
+  const match = gmlString.match(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/);
+  if (!match) return null;
+  const [x, y] = match[1].trim().split(',').map(Number);
+  if (isNaN(x) || isNaN(y)) return null;
+  return convertToLatLng(x, y);
+}
+
+// ===================================================
+// CALCUL DE SURFACE SHOELACE (en ha, depuis Lambert 93)
+// ===================================================
+function shoelaceHa(pts) {
+  if (pts.length < 3) return null;
+  let s = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    s += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
+  }
+  return Math.abs(s) / 2 / 10000;
+}
+
+function extractLambertPts(gc) {
+  if (!gc?.textContent) return [];
+  return gc.textContent.trim().split(/\s+/).reduce((acc, tok) => {
+    if (tok.includes(',')) {
+      const [x, y] = tok.split(',').map(Number);
+      if (!isNaN(x) && !isNaN(y)) acc.push([x, y]);
+    }
+    return acc;
+  }, []);
+}
+
+// ===================================================
+// PARSING DES SNA
+// ===================================================
+function parseSNA(xmlDoc) {
+  const NS = 'urn:x-telepac:fr.gouv.agriculture.telepac:echange-producteur';
+  const GML = 'http://www.opengis.net/gml';
+  const snaList = [];
+
+  for (const sna of xmlDoc.getElementsByTagNameNS(NS, 'sna-declaree')) {
+    const getText = (tag) => sna.getElementsByTagNameNS(NS, tag)[0]?.textContent?.trim() || '';
+    
+    const numeroSna = getText('numeroSna');
+    const typeSna = getText('typeSna');
+    const categorieSna = getText('categorieSna');
+    const surfaceGraphique = parseFloat(getText('surfaceGraphique')) || 0;
+    const largeurCalculee = parseFloat(getText('largeurCalculee')) || null;
+    const longueurIae = parseFloat(getText('longueurIae')) || null;
+    const dateMiseAjour = getText('dateMiseAjour') || null;
+    
+    // Récupération des îlots associés
+    const ilots = [];
+    const interIlots = sna.getElementsByTagNameNS(NS, 'intersectionsSnaIlots')[0];
+    if (interIlots) {
+      const intersections = interIlots.getElementsByTagNameNS(NS, 'intersectionSnaIlot');
+      for (const inter of intersections) {
+        const numIlot = inter.getElementsByTagNameNS(NS, 'numeroIlot')[0]?.textContent?.trim();
+        if (numIlot) ilots.push(numIlot);
+      }
+    }
+    
+    let parcelleAssociee = null;
+    const interParc = sna.getElementsByTagNameNS(NS, 'intersectionsSnaParcelles')[0];
+    if (interParc) {
+      const inter = interParc.getElementsByTagNameNS(NS, 'intersectionSnaParcelle')[0];
+      if (inter) {
+        parcelleAssociee = inter.getElementsByTagNameNS(NS, 'numeroParcelle')[0]?.textContent?.trim() || null;
+        const numIlot = inter.getElementsByTagNameNS(NS, 'numeroIlot')[0]?.textContent?.trim();
+        if (numIlot && !ilots.includes(numIlot)) ilots.push(numIlot);
+      }
+    }
+    
+    // Récupération de la géométrie
+    let geom = null;
+    let geomLine = null;
+    let geomPoint = null;
+    
+    const polygonNode = sna.getElementsByTagNameNS(GML, 'Polygon')[0];
+    if (polygonNode) {
+      geom = parseGmlPolygon(polygonNode.outerHTML);
+    }
+    
+    if (!geom) {
+      const lineNode = sna.getElementsByTagNameNS(GML, 'LineString')[0];
+      if (lineNode) {
+        geomLine = parseGmlLineString(lineNode.outerHTML);
+      }
+    }
+    
+    if (!geom && !geomLine) {
+      const pointNode = sna.getElementsByTagNameNS(GML, 'Point')[0];
+      if (pointNode) {
+        geomPoint = parseGmlPoint(pointNode.outerHTML);
+      }
+    }
+    
+    if (geom || geomLine || geomPoint) {
+      snaList.push({
+        numeroSna,
+        typeSna,
+        categorieSna,
+        surfaceGraphique,
+        largeurCalculee,
+        longueurIae,
+        ilots,
+        parcelleAssociee,
+        dateMiseAjour,
+        geom,
+        geomLine,
+        geomPoint
+      });
+    }
+  }
+  
+  console.log(`SNAs extraits : ${snaList.length}`);
+  return snaList;
+}
+
+// ===================================================
+// PARSING CAB — Éléments-bio
+// ===================================================
+function parseCabRows(ilots, NS, GML, extractLambertPtsLocal, shoelaceHaLocal) {
+  const cabRows = [];
+
+  for (const ilot of ilots) {
+    const iNum = ilot.getAttribute('numero-ilot') || '';
+    const com  = ilot.getElementsByTagNameNS(NS, 'commune')[0]?.textContent.trim() || '';
+
+    const bioByParc = new Map();
+    for (const parc of ilot.getElementsByTagNameNS(NS, 'parcelle')) {
+      const desc = parc.getElementsByTagNameNS(NS, 'descriptif-parcelle')[0];
+      if (!desc) continue;
+      const numParc = desc.getAttribute('numero-parcelle') || '';
+      const bioEl   = desc.getElementsByTagNameNS(NS, 'agri-bio')[0];
+      if (bioEl) {
+        bioByParc.set(numParc, {
+          conduite: bioEl.getAttribute('conduite-bio') || '',
+          type:     bioEl.getAttribute('type-conduite-bio') || '',
         });
       }
-    };
+    }
+
+    const elemsBioContainer = ilot.getElementsByTagNameNS(NS, 'elements-bio')[0];
+    if (!elemsBioContainer) continue;
+
+    for (const elem of elemsBioContainer.getElementsByTagNameNS(NS, 'element-bio')) {
+      const getT = (tag) =>
+        elem.getElementsByTagNameNS(NS, tag)[0]?.textContent?.trim() || null;
+
+      const numeroElem   = getT('numero-element') || '?';
+      const codeMesure   = getT('code-mesure')    || '?';
+      const cultAnn      = getT('cultures-annuelles') || 'false';
+      const premCampagne = getT('premiere-campagne');
+      const dernCampagne = getT('derniere-campagne');
+
+      const gc  = elem.getElementsByTagNameNS(GML, 'coordinates')[0];
+      const pts = gc ? extractLambertPtsLocal(gc) : [];
+      const area_ha = pts.length >= 3 ? shoelaceHaLocal(pts) : null;
+
+      const bio = bioByParc.get(numeroElem) || [...bioByParc.values()][0] || null;
+
+      cabRows.push({
+        ilot_num:          iNum,
+        commune:           com,
+        numero_element:    numeroElem,
+        code_mesure:       codeMesure,
+        cultures_annuelles: cultAnn,
+        premiere_campagne: premCampagne,
+        derniere_campagne: dernCampagne,
+        type_bio:          bio?.type || '',
+        area_ha,
+      });
+    }
   }
+
+  return cabRows;
 }
 
-export function invalidateMapSize() {
-  if (currentMap) setTimeout(() => currentMap.invalidateSize(), 100);
+// ===================================================
+// PARSING PRINCIPAL
+// ===================================================
+export function parseXML(xmlString) {
+  console.log('Début du parsing XML…');
+  const t0 = performance.now();
+
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
+
+  const parseError = xmlDoc.querySelector('parsererror');
+  if (parseError) throw new Error('Erreur de syntaxe XML : ' + parseError.textContent);
+
+  const NS  = 'urn:x-telepac:fr.gouv.agriculture.telepac:echange-producteur';
+  const GML = 'http://www.opengis.net/gml';
+
+  const getText = (el, tag) => el.getElementsByTagNameNS(NS, tag)[0]?.textContent.trim() || '';
+
+  // ── Méta-données ──────────────────────────────────
+  const prod = xmlDoc.getElementsByTagNameNS(NS, 'producteur')[0];
+  let exploitantNom = '';
+  const demandeur = xmlDoc.getElementsByTagNameNS(NS, 'demandeur')[0];
+  if (demandeur) {
+    const soc = demandeur.getElementsByTagNameNS(NS, 'identification-societe')[0];
+    if (soc) exploitantNom = getText(soc, 'exploitation') || getText(soc, 'raison-sociale');
+    if (!exploitantNom) {
+      const indiv = demandeur.getElementsByTagNameNS(NS, 'identification-individuelle')[0];
+      if (indiv) {
+        const id = indiv.getElementsByTagNameNS(NS, 'identite')[0];
+        if (id) exploitantNom = ((getText(id, 'prenoms') + ' ' + getText(id, 'nom')).trim());
+      }
+    }
+  }
+
+  const meta = {
+    pacage: prod?.getAttribute('numero-pacage') || '',
+    campagne: prod?.getAttribute('campagne') || '',
+    exploitation: exploitantNom,
+    siret: getText(xmlDoc, 'siret')
+  };
+
+  // ── Structures de sortie ──────────────────────────
+  const rows      = [];
+  const ilotsMap  = new Map();
+  const parcelsList = [];
+  const maecSurf  = [];
+  const maecLine  = [];
+  const maecPoint = [];
+  const maecRows  = [];
+
+  const ilots = xmlDoc.getElementsByTagNameNS(NS, 'ilot');
+  console.log(`Îlots trouvés : ${ilots.length}`);
+
+  // Parsing CAB
+  const cabRows = parseCabRows(ilots, NS, GML, extractLambertPts, shoelaceHa);
+  console.log(`Éléments-bio CAB extraits : ${cabRows.length}`);
+
+  for (const ilot of ilots) {
+    const iNum = ilot.getAttribute('numero-ilot') || '';
+    const iRef = ilot.getAttribute('numero-ilot-reference') || '';
+    const com  = getText(ilot, 'commune');
+
+    // Géométrie îlot
+    const geomIlot = ilot.getElementsByTagNameNS(NS, 'geometrie')[0]
+      ?.getElementsByTagNameNS(GML, 'Polygon')[0];
+    if (geomIlot) {
+      const poly = parseGmlPolygon(geomIlot.outerHTML);
+      if (poly) {
+        ilotsMap.set(iNum, { numero: iNum, reference: iRef, geom: poly });
+        console.log(`Îlot ${iNum} géométrie chargée, premier point:`, poly[0]);
+      }
+    }
+
+    // ── Parcelles culturales ─────────────────────────
+    for (const parc of ilot.getElementsByTagNameNS(NS, 'parcelle')) {
+      const desc = parc.getElementsByTagNameNS(NS, 'descriptif-parcelle')[0];
+      if (!desc) continue;
+      const cp = desc.getElementsByTagNameNS(NS, 'culture-principale')[0];
+      if (!cp) continue;
+
+      const code = getText(cp, 'code-culture');
+      const prec = getText(cp, 'precision');
+      const saEl = parc.getElementsByTagNameNS(NS, 'surface-admissible')[0];
+      const saAres = saEl?.textContent.trim() || '';
+      const saHaVal = saAres ? Number(saAres) / 100 : null;
+
+      const gc = parc.getElementsByTagNameNS(GML, 'coordinates')[0];
+      const pts = extractLambertPts(gc);
+      const area = pts.length >= 3 ? shoelaceHa(pts) : null;
+
+      const info = lookup(code, prec);
+
+      const get = (tag) => desc.getElementsByTagNameNS(NS, tag)[0];
+
+      rows.push({
+        ilot_num: iNum, ilot_ref: iRef, commune: com,
+        num_parcelle: desc.getAttribute('numero-parcelle') || '',
+        code, precision: prec,
+        nom_culture: info.nom, precision_label: info.precision_label,
+        surface_cat: info.surface_cat, eco: info.eco, section: info.section,
+        culture_sec: cp.getAttribute('culture-secondaire') || '',
+        declare_iae: cp.getAttribute('declare-IAE') || '',
+        prod_semences: cp.getAttribute('production-semences') || '',
+        longueur_bordure: getText(cp, 'longueur-bordure'),
+        prod_fermiers: cp.getAttribute('production-fermiers') || '',
+        deshydratation: cp.getAttribute('deshydratation') || '',
+        derogation_ukraine: cp.getAttribute('derogation-ukraine') || '',
+        accident_culture: cp.getAttribute('accident-culture') || '',
+        prise_connaissance_phyto: cp.getAttribute('prise-connaissance-interdiction-phyto') || '',
+        reconversion_pp: get('reconversion-pp')?.textContent.trim() || '',
+        retournement_pp: get('retournement-pp')?.textContent.trim() || '',
+        obligation_reimplantation_pp: get('obligation-reimplantation-pp')?.textContent.trim() || '',
+        agri_bio_conduite: get('agri-bio')?.getAttribute('conduite-bio') || '',
+        agri_bio_type: get('agri-bio')?.getAttribute('type-conduite-bio') || '',
+        agri_bio_maraichage: get('agri-bio')?.getAttribute('conduite-maraichage') || '',
+        engmaec_surface_cible: get('engagements-maec')?.getAttribute('surface-cible') || '',
+        engmaec_elevage_mono: get('engagements-maec')?.getAttribute('elevage-monogastrique') || '',
+        surface_admissible_ha: saHaVal,
+        area_ha: area,
+        _unk: info.surface_cat === '?'
+      });
+
+      // Géométrie parcelle
+      const geomParc = parc.getElementsByTagNameNS(NS, 'geometrie')[0]
+        ?.getElementsByTagNameNS(GML, 'Polygon')[0];
+      if (geomParc) {
+        const poly = parseGmlPolygon(geomParc.outerHTML);
+        if (poly) parcelsList.push({
+          ilot: iNum, parcelle: desc.getAttribute('numero-parcelle') || '',
+          culture: code, surface: saAres, geom: poly
+        });
+      }
+    }
+
+    // ── MAEC surfaciques ─────────────────────────────
+    const maecS = ilot.getElementsByTagNameNS(NS, 'elements-maec-S')[0];
+    if (maecS) {
+      for (const elem of maecS.getElementsByTagNameNS(NS, 'element-surfacique')) {
+        const numElem  = getText(elem, 'numero-element');
+        const codeMes  = getText(elem, 'code-mesure');
+        const sousType = getText(elem, 'sous-type-geometrie');
+        const premCamp = getText(elem, 'premiere-campagne') || null;
+        const dernCamp = getText(elem, 'derniere-campagne') || null;
+
+        const gc = elem.getElementsByTagNameNS(GML, 'coordinates')[0];
+        const pts = extractLambertPts(gc);
+        const maecArea = pts.length >= 3 ? shoelaceHa(pts) : null;
+
+        const geomNode = elem.getElementsByTagNameNS(GML, 'Polygon')[0];
+        if (geomNode) {
+          const poly = parseGmlPolygon(geomNode.outerHTML);
+          if (poly) maecSurf.push({
+            code: codeMes,
+            sousType: sousType || 'S',
+            numero: numElem,
+            premiereC: premCamp,
+            derniereC: dernCamp,
+            geom: poly
+          });
+        }
+
+        const matchRow = rows.find(r => r.ilot_num === iNum && r.num_parcelle === numElem);
+        maecRows.push({
+          ilot_num: iNum, ilot_ref: iRef,
+          commune: com || matchRow?.commune || '',
+          num_parcelle: numElem, code_mesure: codeMes,
+          premiere_campagne: premCamp, derniere_campagne: dernCamp,
+          maec_area_ha: maecArea,
+          surface_admissible_ha: matchRow?.surface_admissible_ha ?? null,
+          nom_culture: matchRow?.nom_culture || '—',
+          code: matchRow?.code || '—'
+        });
+      }
+    }
+
+    // ── MAEC linéaires ───────────────────────────────
+    const maecL = ilot.getElementsByTagNameNS(NS, 'elements-maec-L')[0];
+    if (maecL) {
+      for (const elem of maecL.getElementsByTagNameNS(NS, 'element-lineaire')) {
+        const codeMes  = getText(elem, 'code-mesure');
+        const sousType = getText(elem, 'sous-type-geometrie');
+        const numElem  = getText(elem, 'numero-element');
+        const premCamp = getText(elem, 'premiere-campagne') || null;
+        const dernCamp = getText(elem, 'derniere-campagne') || null;
+        const geomNode = elem.getElementsByTagNameNS(GML, 'LineString')[0];
+        if (geomNode) {
+          const line = parseGmlLineString(geomNode.outerHTML);
+          if (line) maecLine.push({
+            code: codeMes,
+            sousType: sousType || 'L',
+            numero: numElem,
+            premiereC: premCamp,
+            derniereC: dernCamp,
+            geom: line
+          });
+        }
+      }
+    }
+
+    // ── MAEC ponctuelles ─────────────────────────────
+    const maecP = ilot.getElementsByTagNameNS(NS, 'elements-maec-P')[0];
+    if (maecP) {
+      for (const elem of maecP.getElementsByTagNameNS(NS, 'element-ponctuel')) {
+        const codeMes  = getText(elem, 'code-mesure');
+        const sousType = getText(elem, 'sous-type-geometrie');
+        const numElem  = getText(elem, 'numero-element');
+        const premCamp = getText(elem, 'premiere-campagne') || null;
+        const dernCamp = getText(elem, 'derniere-campagne') || null;
+        const geomNode = elem.getElementsByTagNameNS(GML, 'Point')[0];
+        if (geomNode) {
+          const pt = parseGmlPoint(geomNode.outerHTML);
+          if (pt) maecPoint.push({
+            code: codeMes,
+            sousType: sousType || 'P',
+            numero: numElem,
+            premiereC: premCamp,
+            derniereC: dernCamp,
+            geom: pt
+          });
+        }
+      }
+    }
+  }
+
+  console.log(`Parcelles extraites : ${rows.length}`);
+  console.log(`Géométries d'îlots : ${ilotsMap.size}`);
+  console.log(`Temps de parsing : ${(performance.now() - t0).toFixed(0)} ms`);
+
+  return {
+    meta,
+    rows,
+    maecRows,
+    cabRows,
+    ilotsGeo: Array.from(ilotsMap.values()),
+    parcelsGeo: parcelsList,
+    maecGeo: { surfaciques: maecSurf, lineaires: maecLine, ponctuelles: maecPoint },
+    snaGeo: parseSNA(xmlDoc),
+    xmlDoc
+  };
 }
