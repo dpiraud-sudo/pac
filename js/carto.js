@@ -30,23 +30,61 @@ export function resetMap() {
 }
 
 // ===================================================
-// PARSING DES COORDONNÉES (unique)
+// PROJECTION Lambert-93 (EPSG:2154) → WGS84
+// Nécessite proj4.js chargé dans la page HTML
 // ===================================================
-// Détection automatique de l'ordre des coordonnées :
-// - Format GeoJSON : [lng, lat] → le premier élément est la longitude (< 20 pour la France)
-// - Format Leaflet : [lat, lng] → le premier élément est la latitude (> 40 pour la France)
-function _isGeoJsonOrder(a, b) {
-  // En France : lat ∈ [41, 51], lng ∈ [-5, 10]
-  // Si a ∈ [-180, 20] et b ∈ [40, 60] → ordre GeoJSON [lng, lat]
-  const aIsLng = Math.abs(a) <= 20;
-  const bIsLat = b >= 40 && b <= 55;
-  return aIsLng && bIsLat;
+(function _initProj4() {
+  if (typeof proj4 !== 'undefined') {
+    proj4.defs(
+      'EPSG:2154',
+      '+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 ' +
+      '+x_0=700000 +y_0=6600000 +ellps=GRS80 ' +
+      '+towgs84=0,0,0,0,0,0,0 +units=m +no_defs'
+    );
+  }
+})();
+
+/**
+ * Détecte si une valeur est en Lambert-93 (coordonnées métriques françaises).
+ * En Lambert-93 : X ∈ [100 000, 1 300 000], Y ∈ [6 000 000, 7 200 000]
+ */
+function _isLambert93(a, b) {
+  return (a > 100000 && a < 1300000 && b > 6000000 && b < 7200000);
 }
 
+/**
+ * Convertit une paire de valeurs en [lat, lng] pour Leaflet.
+ * Gère automatiquement :
+ *  - Lambert-93 [X, Y] → WGS84 via proj4
+ *  - GeoJSON    [lng, lat] → inversé pour Leaflet
+ *  - Leaflet    [lat, lng] → retourné tel quel
+ */
+function _toLatLng(a, b) {
+  if (typeof proj4 !== 'undefined' && _isLambert93(a, b)) {
+    const [lon, lat] = proj4('EPSG:2154', 'EPSG:4326', [a, b]);
+    return [lat, lon];
+  }
+  // GeoJSON order [lng, lat] : lng ∈ [-180,20] pour la France, lat ∈ [40,55]
+  if (Math.abs(a) <= 20 && b >= 40 && b <= 55) return [b, a];
+  // Déjà en [lat, lng]
+  return [a, b];
+}
+
+// ===================================================
+// PARSING DES COORDONNÉES (unique)
+// ===================================================
+
+/**
+ * Convertit n'importe quelle représentation d'un point en [lat, lng].
+ * Accepte :
+ *  - {lat, lng}
+ *  - [a, b]  (Lambert-93, GeoJSON ou Leaflet — détecté automatiquement)
+ *  - "a,b"   (idem)
+ */
 function _parseCoord(coordStr) {
   if (!coordStr) return null;
 
-  // Objet {lat, lng} → ordre déjà correct pour Leaflet
+  // Objet {lat, lng} → déjà en WGS84 format Leaflet
   if (typeof coordStr === 'object' && !Array.isArray(coordStr) && coordStr.lat !== undefined) {
     return [coordStr.lat, coordStr.lng];
   }
@@ -54,24 +92,14 @@ function _parseCoord(coordStr) {
   // Tableau numérique [a, b]
   if (Array.isArray(coordStr) && coordStr.length === 2) {
     const [a, b] = coordStr;
-    if (typeof a === 'number' && typeof b === 'number') {
-      // Détection automatique : GeoJSON [lng, lat] ou Leaflet [lat, lng]
-      if (_isGeoJsonOrder(a, b)) {
-        return [b, a]; // GeoJSON → on inverse pour Leaflet
-      }
-      return [a, b]; // Déjà en [lat, lng]
-    }
+    if (typeof a === 'number' && typeof b === 'number') return _toLatLng(a, b);
   }
 
-  // Chaîne "a, b"
+  // Chaîne "a,b" ou "a, b"
   if (typeof coordStr === 'string') {
     const parts = coordStr.split(',').map(p => parseFloat(p.trim()));
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-      const [a, b] = parts;
-      if (_isGeoJsonOrder(a, b)) {
-        return [b, a]; // GeoJSON → on inverse pour Leaflet
-      }
-      return [a, b]; // Déjà en [lat, lng]
+      return _toLatLng(parts[0], parts[1]);
     }
   }
 
@@ -80,13 +108,11 @@ function _parseCoord(coordStr) {
 
 function _parseGeometry(coordsArray) {
   if (!coordsArray || !Array.isArray(coordsArray)) return null;
-  
   const points = [];
   for (const coord of coordsArray) {
     const ll = _parseCoord(coord);
     if (ll) points.push(ll);
   }
-  
   return points.length >= 2 ? points : null;
 }
 
