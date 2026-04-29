@@ -1,4 +1,4 @@
-// js/carto.js - Version corrigée avec parsing GML robuste
+// js/carto.js - Version avec gestion des polygones complexes
 import { getCultureColor } from './data.js';
 
 let currentMap = null;
@@ -8,7 +8,6 @@ let currentMaecSGroup   = null;
 let currentMaecSLGroup  = null;
 let currentMaecPGroup   = null;
 
-// Couches SNA par type
 let snaLayerGroups = {};
 let snaData        = [];
 
@@ -30,7 +29,7 @@ export function resetMap() {
 }
 
 // ===================================================
-// PROJECTION Lambert-93 (EPSG:2154) → WGS84
+// PROJECTION
 // ===================================================
 if (typeof proj4 !== 'undefined') {
   proj4.defs(
@@ -43,7 +42,6 @@ if (typeof proj4 !== 'undefined') {
 
 function convertToLatLng(x, y) {
   if (typeof proj4 === 'undefined') {
-    console.warn('proj4.js non disponible');
     return [parseFloat(y), parseFloat(x)];
   }
   const [lon, lat] = proj4('EPSG:2154', 'EPSG:4326', [parseFloat(x), parseFloat(y)]);
@@ -51,65 +49,8 @@ function convertToLatLng(x, y) {
 }
 
 // ===================================================
-// PARSING GML - Version identique au HTML de référence
+// PARSING
 // ===================================================
-
-export function parseGmlPolygon(gmlString) {
-  const coordRegex = /<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/g;
-  const matches = [...gmlString.matchAll(coordRegex)];
-  if (matches.length === 0) return null;
-  
-  const outerCoords = matches[0][1].trim().split(/\s+/);
-  const outerRing = [];
-  for (let pair of outerCoords) {
-    if (pair === "") continue;
-    const [x, y] = pair.split(',').map(Number);
-    if (!isNaN(x) && !isNaN(y)) outerRing.push(convertToLatLng(x, y));
-  }
-  if (outerRing.length < 3) return null;
-  
-  const holes = [];
-  for (let i = 1; i < matches.length; i++) {
-    const holeCoords = matches[i][1].trim().split(/\s+/);
-    const holeRing = [];
-    for (let pair of holeCoords) {
-      if (pair === "") continue;
-      const [x, y] = pair.split(',').map(Number);
-      if (!isNaN(x) && !isNaN(y)) holeRing.push(convertToLatLng(x, y));
-    }
-    if (holeRing.length >= 3) holes.push(holeRing);
-  }
-  
-  return holes.length > 0 ? [outerRing, ...holes] : outerRing;
-}
-
-export function parseGmlLineString(gmlString) {
-  const coordRegex = /<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/;
-  const match = gmlString.match(coordRegex);
-  if (!match) return null;
-  const coords = match[1].trim().split(/\s+/);
-  const points = [];
-  for (let pair of coords) {
-    if (pair === "") continue;
-    const [x, y] = pair.split(',').map(Number);
-    if (!isNaN(x) && !isNaN(y)) points.push(convertToLatLng(x, y));
-  }
-  return points.length >= 2 ? points : null;
-}
-
-export function parseGmlPoint(gmlString) {
-  const coordRegex = /<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/;
-  const match = gmlString.match(coordRegex);
-  if (!match) return null;
-  const [x, y] = match[1].trim().split(',').map(Number);
-  if (isNaN(x) || isNaN(y)) return null;
-  return convertToLatLng(x, y);
-}
-
-// ===================================================
-// PARSING DES COORDONNÉES DEPUIS L'OBJET GEOJSON
-// ===================================================
-
 function parseCoord(coordStr) {
   if (!coordStr) return null;
 
@@ -120,11 +61,9 @@ function parseCoord(coordStr) {
   if (Array.isArray(coordStr) && coordStr.length === 2) {
     const [a, b] = coordStr;
     if (typeof a === 'number' && typeof b === 'number') {
-      // Détection Lambert-93
       if (a > 100000 && a < 1300000 && b > 6000000 && b < 7200000) {
         return convertToLatLng(a, b);
       }
-      // GeoJSON [lng, lat]
       if (Math.abs(a) <= 20 && b >= 40 && b <= 55) return [b, a];
       return [a, b];
     }
@@ -218,52 +157,110 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
   let parcelCount = 0;
   let maecCount = 0;
 
-  // ========== 1. ÎLOTS - Utilisation directe de la géométrie ==========
+  // ========== 1. ÎLOTS - Gestion polygones complexes ==========
   console.log('Nombre d\'îlots reçus:', ilotsGeo.length);
-  
+
   ilotsGeo.forEach(ilot => {
-    // Vérifier si la géométrie est déjà un tableau de points
-    let geomPoints = null;
+    let polygonsToAdd = [];
     
-    if (ilot.geom && Array.isArray(ilot.geom) && ilot.geom.length >= 3) {
-      // La géométrie est déjà un tableau de coordonnées
-      geomPoints = [];
-      for (const coord of ilot.geom) {
-        const ll = parseCoord(coord);
-        if (ll) geomPoints.push(ll);
+    if (ilot.geom && Array.isArray(ilot.geom)) {
+      const firstElement = ilot.geom[0];
+      
+      // Cas 1: Polygone simple
+      if (Array.isArray(firstElement) && firstElement.length === 2 && typeof firstElement[0] === 'number') {
+        const points = [];
+        for (const coord of ilot.geom) {
+          const ll = parseCoord(coord);
+          if (ll) points.push(ll);
+        }
+        if (points.length >= 3) {
+          polygonsToAdd.push([points]);
+        }
+      }
+      // Cas 2: Polygone avec trou(s)
+      else if (Array.isArray(firstElement) && Array.isArray(firstElement[0]) && typeof firstElement[0][0] === 'number') {
+        const rings = [];
+        for (const ring of ilot.geom) {
+          const points = [];
+          for (const coord of ring) {
+            const ll = parseCoord(coord);
+            if (ll) points.push(ll);
+          }
+          if (points.length >= 3) {
+            rings.push(points);
+          }
+        }
+        if (rings.length >= 1) {
+          polygonsToAdd.push(rings);
+        }
+      }
+      // Cas 3: Multi-polygone
+      else if (Array.isArray(firstElement) && Array.isArray(firstElement[0]) && Array.isArray(firstElement[0][0])) {
+        for (const poly of ilot.geom) {
+          const rings = [];
+          for (const ring of poly) {
+            const points = [];
+            for (const coord of ring) {
+              const ll = parseCoord(coord);
+              if (ll) points.push(ll);
+            }
+            if (points.length >= 3) {
+              rings.push(points);
+            }
+          }
+          if (rings.length >= 1) {
+            polygonsToAdd.push(rings);
+          }
+        }
       }
     }
     
-    if (geomPoints && geomPoints.length >= 3) {
-      const poly = L.polygon(geomPoints, {
-        color: '#9e9e9e', weight: 2, opacity: 0.7,
-        fillOpacity: 0.1, fillColor: '#bdbdbd'
-      });
-      poly.addTo(currentIlotGroup);
-      poly.bindPopup(`<b>🏷️ Îlot ${ilot.numero}</b><br>Référence : ${ilot.reference || '—'}`);
-      geomPoints.forEach(ll => allLatLngs.push(ll));
-      console.log(`Îlot ${ilot.numero} ajouté avec ${geomPoints.length} points`);
+    if (polygonsToAdd.length > 0) {
+      for (const rings of polygonsToAdd) {
+        const poly = L.polygon(rings, {
+          color: '#9e9e9e', weight: 2, opacity: 0.7,
+          fillOpacity: 0.1, fillColor: '#bdbdbd'
+        });
+        poly.addTo(currentIlotGroup);
+        poly.bindPopup(`<b>🏷️ Îlot ${ilot.numero}</b><br>Référence : ${ilot.reference || '—'}`);
+        for (const ring of rings) {
+          ring.forEach(ll => allLatLngs.push(ll));
+        }
+      }
+      console.log(`Îlot ${ilot.numero} ajouté avec ${polygonsToAdd.length} polygone(s)`);
     } else {
-      console.warn(`Îlot ${ilot.numero} ignoré - géométrie invalide:`, ilot.geom);
+      console.warn(`Îlot ${ilot.numero} ignoré - géométrie invalide`);
     }
   });
 
   // ========== 2. PARCELLES ==========
   parcelsGeo.forEach(parcel => {
-    let geomPoints = null;
+    let points = [];
     
-    if (parcel.geom && Array.isArray(parcel.geom) && parcel.geom.length >= 3) {
-      geomPoints = [];
-      for (const coord of parcel.geom) {
-        const ll = parseCoord(coord);
-        if (ll) geomPoints.push(ll);
+    if (parcel.geom && Array.isArray(parcel.geom)) {
+      // Gérer les différents formats
+      const firstElement = parcel.geom[0];
+      
+      if (Array.isArray(firstElement) && firstElement.length === 2 && typeof firstElement[0] === 'number') {
+        // Polygone simple
+        for (const coord of parcel.geom) {
+          const ll = parseCoord(coord);
+          if (ll) points.push(ll);
+        }
+      } else if (Array.isArray(firstElement) && Array.isArray(firstElement[0])) {
+        // Polygone avec trous - prendre l'anneau extérieur
+        const outerRing = parcel.geom[0];
+        for (const coord of outerRing) {
+          const ll = parseCoord(coord);
+          if (ll) points.push(ll);
+        }
       }
     }
     
-    if (geomPoints && geomPoints.length >= 3) {
+    if (points.length >= 3) {
       parcelCount++;
       const colors = getCultureColor(parcel.culture);
-      const poly = L.polygon(geomPoints, {
+      const poly = L.polygon(points, {
         color: colors.color, weight: 2, opacity: 0.8,
         fillOpacity: 0.5, fillColor: colors.fill
       });
@@ -274,7 +271,7 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
         Îlot : ${parcel.ilot} | Parcelle : ${parcel.parcelle}<br>
         Surface : ${surfHa.replace('.', ',')} ha
       `);
-      geomPoints.forEach(ll => allLatLngs.push(ll));
+      points.forEach(ll => allLatLngs.push(ll));
     }
   });
 
@@ -287,34 +284,33 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
 
   allMaec.forEach(maec => {
     const type = (maec.sousType || '').toUpperCase();
-    let geomPoints = null;
+    let points = [];
     
     if (maec.geom && Array.isArray(maec.geom)) {
-      geomPoints = [];
       for (const coord of maec.geom) {
         const ll = parseCoord(coord);
-        if (ll) geomPoints.push(ll);
+        if (ll) points.push(ll);
       }
     }
 
-    if (type === 'S' && geomPoints && geomPoints.length >= 3) {
+    if (type === 'S' && points.length >= 3) {
       maecCount++;
-      const poly = L.polygon(geomPoints, {
+      const poly = L.polygon(points, {
         color: '#1e88e5', weight: 2, opacity: 0.8,
         fillOpacity: 0.3, fillColor: '#42a5f5'
       });
       poly.addTo(currentMaecSGroup);
       poly.bindPopup(maecPopup('🌿 MAEC Surfacique', maec));
-      geomPoints.forEach(ll => allLatLngs.push(ll));
+      points.forEach(ll => allLatLngs.push(ll));
 
-    } else if (type === 'L' && geomPoints && geomPoints.length >= 2) {
+    } else if (type === 'L' && points.length >= 2) {
       maecCount++;
-      const line = L.polyline(geomPoints, {
+      const line = L.polyline(points, {
         color: '#ff8c00', weight: 3, opacity: 0.9
       });
       line.addTo(currentMaecSLGroup);
       line.bindPopup(maecPopup('📏 MAEC Linéaire', maec));
-      geomPoints.forEach(ll => allLatLngs.push(ll));
+      points.forEach(ll => allLatLngs.push(ll));
 
     } else if (type === 'P') {
       const ll = parseCoord(maec.geom);
@@ -334,10 +330,7 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
   // ========== 4. SNA ==========
   buildSnaLayers(snaList);
 
-  // Centrage
   fitBounds(allLatLngs);
-
-  // Mise à jour des stats et contrôles
   updateStats(ilotsGeo, parcelCount, maecCount, snaList);
   setupLayerControls();
   buildSnaFilterUI(snaList);
@@ -356,8 +349,7 @@ function buildSnaLayers(snaList) {
     const style = getSnaStyle(sna);
     const popup = snaPopup(sna);
 
-    // Géométrie polygonale
-    if (sna.geom && Array.isArray(sna.geom) && sna.geom.length >= 3) {
+    if (sna.geom && Array.isArray(sna.geom)) {
       const points = [];
       for (const coord of sna.geom) {
         const ll = parseCoord(coord);
@@ -372,8 +364,7 @@ function buildSnaLayers(snaList) {
         poly.addTo(snaLayerGroups[typeCode]);
       }
     }
-    // Géométrie linéaire
-    else if (sna.geomLine && Array.isArray(sna.geomLine) && sna.geomLine.length >= 2) {
+    else if (sna.geomLine && Array.isArray(sna.geomLine)) {
       const points = [];
       for (const coord of sna.geomLine) {
         const ll = parseCoord(coord);
@@ -387,7 +378,6 @@ function buildSnaLayers(snaList) {
         line.addTo(snaLayerGroups[typeCode]);
       }
     }
-    // Géométrie ponctuelle
     else if (sna.geomPoint) {
       const ll = parseCoord(sna.geomPoint);
       if (ll) {
