@@ -61,6 +61,12 @@ export function parseGmlPolygon(gmlString) {
   return ring.length >= 3 ? ring : null;
 }
 
+// Dans parseGmlPolygon, après avoir converti les points
+if (ring.length > 0) {
+  console.log('Polygon extrait - premier point:', ring[0]);
+  console.log('Polygon extrait - dernier point:', ring[ring.length-1]);
+}
+
 export function parseGmlLineString(gmlString) {
   if (!gmlString) return null;
   const match = gmlString.match(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/);
