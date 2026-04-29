@@ -11,39 +11,38 @@ proj4.defs(
 export function convertToLatLng(x, y) {
   const xNum = parseFloat(x);
   const yNum = parseFloat(y);
-  
-  // Si les coordonnées sont déjà en degrés WGS84 (France métro: lat 41-51, lon -5-10)
-  if (Math.abs(xNum) < 180 && Math.abs(yNum) < 90) {
-    // Déjà en degrés, mais vérifier l'ordre
-    // En général les fichiers PAC stockent (longitude, latitude)
-    // Leaflet attend [latitude, longitude]
-    console.log(`Coordonnées en degrés: (${xNum}, ${yNum}) -> lat=${yNum}, lng=${xNum}`);
-    return [yNum, xNum];
-  }
-  
-  // UTM zone 40S (océan Indien) - à ne PAS utiliser pour la métropole
-  // Détecter si c'est du Lambert 93 (métropole)
-  // Lambert 93: X entre 0 et 1 200 000, Y entre 6 000 000 et 7 200 000
-  const isLambert93 = (xNum >= 0 && xNum <= 1200000 && yNum >= 6000000 && yNum <= 7200000);
-  
+
+  // Lambert-93 (EPSG:2154) — plages métriques françaises sans ambiguïté :
+  // X ∈ [0, 1 300 000]  Y ∈ [6 000 000, 7 200 000]
+  const isLambert93 = (xNum >= 0 && xNum <= 1300000 && yNum >= 6000000 && yNum <= 7200000);
   if (isLambert93) {
     try {
-      const [lon, lat] = proj4("EPSG:2154", "EPSG:4326", [xNum, yNum]);
-      console.log(`Lambert93 (${xNum}, ${yNum}) -> WGS84 (${lat}, ${lon})`);
+      const [lon, lat] = proj4('EPSG:2154', 'EPSG:4326', [xNum, yNum]);
       return [lat, lon];
     } catch (e) {
-      console.error('Erreur conversion Lambert93:', e);
+      console.error('Erreur conversion Lambert-93 :', e);
       return [yNum, xNum];
     }
   }
-  
-  // Autres projections (UTM, etc.)
+
+  // Déjà en WGS84 degrés — format GeoJSON [lng, lat] (lon en premier)
+  // France métro : lon ∈ [-5, 10], lat ∈ [41, 51]
+  if (xNum >= -180 && xNum <= 180 && yNum >= -90 && yNum <= 90) {
+    // Si xNum ressemble à une longitude française et yNum à une latitude française
+    if (xNum >= -5 && xNum <= 10 && yNum >= 41 && yNum <= 51) return [yNum, xNum]; // [lng, lat] → [lat, lng]
+    // Ordre inverse possible [lat, lng] déjà correct pour Leaflet
+    if (yNum >= -5 && yNum <= 10 && xNum >= 41 && xNum <= 51) return [xNum, yNum];
+    // Fallback générique GeoJSON [lng, lat]
+    return [yNum, xNum];
+  }
+
+  // Autres projections — tentative générique
   const projCode = detectProjection(xNum, yNum);
   try {
-    const [lon, lat] = proj4(projCode, "EPSG:4326", [xNum, yNum]);
+    const [lon, lat] = proj4(projCode, 'EPSG:4326', [xNum, yNum]);
     return [lat, lon];
   } catch (e) {
-    console.error(`Erreur conversion ${projCode}:`, e);
+    console.error(`Erreur conversion ${projCode} :`, e);
     return [yNum, xNum];
   }
 }
@@ -52,16 +51,30 @@ export function parseGmlPolygon(gmlString) {
   if (!gmlString) return null;
   const matches = [...gmlString.matchAll(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/g)];
   if (!matches.length) return null;
-  const ring = [];
-  for (const pair of matches[0][1].trim().split(/\s+/)) {
-    if (!pair) continue;
-    const [x, y] = pair.split(',').map(Number);
-    if (!isNaN(x) && !isNaN(y)) ring.push(convertToLatLng(x, y));
+
+  function parseRing(rawText) {
+    const ring = [];
+    for (const pair of rawText.trim().split(/\s+/)) {
+      if (!pair) continue;
+      const [x, y] = pair.split(',').map(Number);
+      if (!isNaN(x) && !isNaN(y)) ring.push(convertToLatLng(x, y));
+    }
+    return ring;
   }
-  return ring.length >= 3 ? ring : null;
+
+  const outerRing = parseRing(matches[0][1]);
+  if (outerRing.length < 3) return null;
+
+  // Trous éventuels (inner rings)
+  const holes = [];
+  for (let i = 1; i < matches.length; i++) {
+    const hole = parseRing(matches[i][1]);
+    if (hole.length >= 3) holes.push(hole);
+  }
+
+  // L.polygon accepte [[outerRing, hole1, hole2, ...]] ou juste outerRing
+  return holes.length > 0 ? [outerRing, ...holes] : outerRing;
 }
-
-
 
 export function parseGmlLineString(gmlString) {
   if (!gmlString) return null;
