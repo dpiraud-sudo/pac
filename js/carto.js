@@ -31,60 +31,112 @@ export function resetMap() {
 
 // ===================================================
 // PROJECTION Lambert-93 (EPSG:2154) → WGS84
-// Nécessite proj4.js chargé dans la page HTML
+// proj4.js est chargé dans index.html avant ce module
 // ===================================================
-(function _initProj4() {
-  if (typeof proj4 !== 'undefined') {
-    proj4.defs(
-      'EPSG:2154',
-      '+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 ' +
-      '+x_0=700000 +y_0=6600000 +ellps=GRS80 ' +
-      '+towgs84=0,0,0,0,0,0,0 +units=m +no_defs'
-    );
-  }
-})();
+if (typeof proj4 !== 'undefined') {
+  proj4.defs(
+    'EPSG:2154',
+    '+proj=lcc +lat_1=49 +lat_2=44 +lat_0=46.5 +lon_0=3 ' +
+    '+x_0=700000 +y_0=6600000 +ellps=GRS80 ' +
+    '+towgs84=0,0,0,0,0,0,0 +units=m +no_defs'
+  );
+}
 
 /**
- * Détecte si une valeur est en Lambert-93 (coordonnées métriques françaises).
- * En Lambert-93 : X ∈ [100 000, 1 300 000], Y ∈ [6 000 000, 7 200 000]
+ * Convertit une paire Lambert-93 (X, Y) en [lat, lng] WGS84 via proj4.
+ * Identique à convertToLatLng() du fichier de référence carto_pac_2026.html.
+ */
+function _lambert93ToLatLng(x, y) {
+  if (typeof proj4 === 'undefined') {
+    console.warn('proj4.js non disponible — coordonnées non converties');
+    return [y, x]; // fallback brut
+  }
+  const [lon, lat] = proj4('EPSG:2154', 'EPSG:4326', [x, y]);
+  return [lat, lon];
+}
+
+/**
+ * Détecte si une valeur numérique est en Lambert-93 métrique.
+ * En Lambert-93 : X ∈ [100 000 ; 1 300 000], Y ∈ [6 000 000 ; 7 200 000]
  */
 function _isLambert93(a, b) {
   return (a > 100000 && a < 1300000 && b > 6000000 && b < 7200000);
 }
 
+// ===================================================
+// PARSING GML (identique au fichier de référence)
+// ===================================================
+
 /**
- * Convertit une paire de valeurs en [lat, lng] pour Leaflet.
- * Gère automatiquement :
- *  - Lambert-93 [X, Y] → WGS84 via proj4
- *  - GeoJSON    [lng, lat] → inversé pour Leaflet
- *  - Leaflet    [lat, lng] → retourné tel quel
+ * Parse un bloc <gml:Polygon> complet (avec trous éventuels)
+ * et retourne un tableau compatible L.polygon([outerRing, ...holes]).
  */
-function _toLatLng(a, b) {
-  if (typeof proj4 !== 'undefined' && _isLambert93(a, b)) {
-    const [lon, lat] = proj4('EPSG:2154', 'EPSG:4326', [a, b]);
-    return [lat, lon];
+export function parseGmlPolygon(gmlString) {
+  const coordRegex = /<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/g;
+  const matches = [...gmlString.matchAll(coordRegex)];
+  if (matches.length === 0) return null;
+
+  function parseRing(rawText) {
+    const ring = [];
+    for (const pair of rawText.trim().split(/\s+/)) {
+      if (!pair) continue;
+      const [x, y] = pair.split(',').map(Number);
+      if (!isNaN(x) && !isNaN(y)) ring.push(_lambert93ToLatLng(x, y));
+    }
+    return ring;
   }
-  // GeoJSON order [lng, lat] : lng ∈ [-180,20] pour la France, lat ∈ [40,55]
-  if (Math.abs(a) <= 20 && b >= 40 && b <= 55) return [b, a];
-  // Déjà en [lat, lng]
-  return [a, b];
+
+  const outerRing = parseRing(matches[0][1]);
+  if (outerRing.length < 3) return null;
+
+  const holes = [];
+  for (let i = 1; i < matches.length; i++) {
+    const hole = parseRing(matches[i][1]);
+    if (hole.length >= 3) holes.push(hole);
+  }
+
+  return holes.length > 0 ? [outerRing, ...holes] : outerRing;
+}
+
+/**
+ * Parse un bloc <gml:LineString> et retourne un tableau de [lat, lng].
+ */
+export function parseGmlLineString(gmlString) {
+  const match = gmlString.match(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/);
+  if (!match) return null;
+  const points = [];
+  for (const pair of match[1].trim().split(/\s+/)) {
+    if (!pair) continue;
+    const [x, y] = pair.split(',').map(Number);
+    if (!isNaN(x) && !isNaN(y)) points.push(_lambert93ToLatLng(x, y));
+  }
+  return points.length >= 2 ? points : null;
+}
+
+/**
+ * Parse un bloc <gml:Point> et retourne [lat, lng].
+ */
+export function parseGmlPoint(gmlString) {
+  const match = gmlString.match(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/);
+  if (!match) return null;
+  const [x, y] = match[1].trim().split(',').map(Number);
+  if (isNaN(x) || isNaN(y)) return null;
+  return _lambert93ToLatLng(x, y);
 }
 
 // ===================================================
-// PARSING DES COORDONNÉES (unique)
+// PARSING DES COORDONNÉES — format tableau (legacy)
+// Utilisé quand les données sont déjà extraites en JS
 // ===================================================
 
 /**
- * Convertit n'importe quelle représentation d'un point en [lat, lng].
- * Accepte :
- *  - {lat, lng}
- *  - [a, b]  (Lambert-93, GeoJSON ou Leaflet — détecté automatiquement)
- *  - "a,b"   (idem)
+ * Convertit n'importe quelle représentation d'un point en [lat, lng] Leaflet.
+ * Gère : {lat,lng}, [X,Y] Lambert-93, [lng,lat] GeoJSON, [lat,lng] natif, "x,y" string.
  */
 function _parseCoord(coordStr) {
   if (!coordStr) return null;
 
-  // Objet {lat, lng} → déjà en WGS84 format Leaflet
+  // Objet {lat, lng} → déjà en WGS84 Leaflet
   if (typeof coordStr === 'object' && !Array.isArray(coordStr) && coordStr.lat !== undefined) {
     return [coordStr.lat, coordStr.lng];
   }
@@ -92,14 +144,22 @@ function _parseCoord(coordStr) {
   // Tableau numérique [a, b]
   if (Array.isArray(coordStr) && coordStr.length === 2) {
     const [a, b] = coordStr;
-    if (typeof a === 'number' && typeof b === 'number') return _toLatLng(a, b);
+    if (typeof a === 'number' && typeof b === 'number') {
+      if (_isLambert93(a, b)) return _lambert93ToLatLng(a, b);
+      // GeoJSON [lng, lat] : lng ∈ [-20, 20], lat ∈ [40, 55] pour la France
+      if (Math.abs(a) <= 20 && b >= 40 && b <= 55) return [b, a];
+      return [a, b]; // déjà [lat, lng]
+    }
   }
 
-  // Chaîne "a,b" ou "a, b"
+  // Chaîne "a,b"
   if (typeof coordStr === 'string') {
     const parts = coordStr.split(',').map(p => parseFloat(p.trim()));
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-      return _toLatLng(parts[0], parts[1]);
+      const [a, b] = parts;
+      if (_isLambert93(a, b)) return _lambert93ToLatLng(a, b);
+      if (Math.abs(a) <= 20 && b >= 40 && b <= 55) return [b, a];
+      return [a, b];
     }
   }
 
