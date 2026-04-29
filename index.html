@@ -7,135 +7,56 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="comparaison_style.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Roboto, sans-serif; background: #f0f4f0; color: #1a2e1a; min-height: 100vh; }
-
-  /* Upload screen */
-  #upload-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-  .upload-card { background: white; border-radius: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.10); padding: 48px 40px; max-width: 520px; width: 100%; text-align: center; }
-  .upload-card h1 { font-size: 1.7rem; color: #1f5e2c; margin-bottom: 8px; }
-  .upload-card p { color: #557055; margin-bottom: 32px; font-size: 0.95rem; }
-  .drop-zone { border: 2.5px dashed #7db87d; border-radius: 16px; padding: 40px 20px; cursor: pointer; transition: 0.2s; background: #f7fcf7; }
-  .drop-zone:hover, .drop-zone.drag-over { border-color: #2d6a2f; background: #edf7ed; }
-  .drop-zone .icon { font-size: 3rem; margin-bottom: 12px; }
-  .drop-zone p { color: #3a6a3a; font-size: 1rem; }
-  .drop-zone small { color: #888; }
-  .drop-zone button { background: #2d6a2f; color: white; border: none; padding: 10px 24px; border-radius: 40px; cursor: pointer; margin-top: 16px; font-weight: 600; }
-  #file-input { display: none; }
-  .btn-primary { display: inline-block; background: #2d6a2f; color: white; border: none; padding: 12px 28px; border-radius: 40px; font-size: 1rem; cursor: pointer; margin-top: 20px; font-weight: 600; transition: 0.2s; }
-  .btn-primary:hover { background: #1f5422; }
-
-  /* App screen */
-  #app-screen { display: none; }
-  .app-header { background: #2d6a2f; color: white; padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-  .app-header h1 { font-size: 1.2rem; flex: 1; }
-  .app-header .pacage-info { font-size: 0.82rem; opacity: 0.85; }
-  .btn-reload { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 6px 16px; border-radius: 30px; cursor: pointer; font-size: 0.85rem; }
-  .btn-reload:hover { background: rgba(255,255,255,0.25); }
-
-  /* Tabs */
-  .tabs { display: flex; background: #1f5422; padding: 0 24px; flex-wrap: wrap; overflow-x: auto; }
-  .tab-btn { background: none; border: none; color: rgba(255,255,255,0.65); padding: 12px 20px; font-size: 0.9rem; cursor: pointer; border-bottom: 3px solid transparent; font-weight: 500; white-space: nowrap; }
-  .tab-btn.active { color: white; border-bottom-color: #7de87d; }
-  .tab-btn:hover { color: white; }
-  .tab-content { display: none; padding: 20px 24px; background: #fefef7; }
-  .tab-content.active { display: block; }
-
-  /* Toolbar */
-  .toolbar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; background: #f9fff7; padding: 12px 16px; border-radius: 40px; border: 1px solid #d4e2cf; align-items: center; }
-  .toolbar input[type="text"] { flex: 1; min-width: 160px; padding: 8px 18px; border-radius: 30px; border: 1px solid #c0dbc0; font-size: 0.9rem; outline: none; }
-  .toolbar input:focus { border-color: #3f8e41; box-shadow: 0 0 0 2px rgba(79,149,79,0.15); }
-  .toolbar select { padding: 8px 14px; border-radius: 30px; border: 1px solid #c0dbc0; font-size: 0.85rem; background: white; cursor: pointer; }
-  .stats-badge { background: #e8f3e5; border-radius: 30px; padding: 6px 16px; font-size: 0.82rem; font-weight: 600; color: #2d6a2f; white-space: nowrap; }
-
-  /* Tables */
-  .table-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid #deecda; background: white; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-  thead th { background: #2d6a2f; color: white; padding: 11px 8px; font-weight: 600; white-space: nowrap; cursor: pointer; user-select: none; }
-  thead th:hover { background: #1f5422; }
-  tbody tr:hover td { background: #f4fbf3; }
-  tbody td { padding: 8px 8px; border-bottom: 1px solid #e5eee2; vertical-align: middle; }
-  .code-badge { font-family: monospace; background: #eff5eb; padding: 3px 8px; border-radius: 16px; font-weight: 700; font-size: 0.8rem; }
-  .prec-badge { font-family: monospace; background: #e8f0ff; color: #2244aa; padding: 2px 7px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
-  .surf-TA { background: #d0eaff; color: #1a5080; padding: 2px 8px; border-radius: 12px; font-size: 0.76rem; font-weight: 600; }
-  .surf-PP { background: #d4f0d4; color: #2a6b2f; padding: 2px 8px; border-radius: 12px; font-size: 0.76rem; font-weight: 600; }
-  .surf-CP { background: #fde9cf; color: #aa6f20; padding: 2px 8px; border-radius: 12px; font-size: 0.76rem; font-weight: 600; }
-  .surf-other { background: #f0e8ff; color: #5a2d8a; padding: 2px 8px; border-radius: 12px; font-size: 0.76rem; font-weight: 600; }
-  .bool-yes { color: #2d8a40; font-weight: 700; }
-  .bool-no { color: #ccc; }
-  .section-badge { background: #f0f0f0; border-radius: 10px; padding: 1px 7px; font-size: 0.75rem; color: #666; }
-
-  /* Summary */
-  .synth-summary { background: white; border-radius: 16px; padding: 16px 20px; margin-bottom: 20px; border: 1px solid #deecda; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
-  .synth-kpi .val { font-size: 1.5rem; font-weight: 700; color: #2d6a2f; }
-  .synth-kpi .lbl { font-size: 0.78rem; color: #778; }
-  .eco-summary-bar { background: white; border-radius: 16px; padding: 16px 20px; margin-bottom: 20px; border: 1px solid #deecda; display: flex; flex-wrap: wrap; gap: 24px; align-items: center; }
-  .eco-kpi { text-align: center; }
-  .eco-kpi .val { font-size: 1.4rem; font-weight: 700; color: #2d6a2f; }
-  .eco-kpi .lbl { font-size: 0.75rem; color: #778; }
-
-  /* Écorégime */
-  .eco-group { margin-bottom: 20px; background: white; border-radius: 16px; border: 1px solid #deecda; overflow: hidden; }
-  .eco-header { background: #eef5ea; padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .eco-header:hover { background: #e3f0dd; }
-  .eco-title { font-weight: 700; font-size: 1rem; color: #1f5422; flex: 1; }
-  .eco-stats { display: flex; gap: 12px; font-size: 0.75rem; color: #2d572d; }
-  .eco-stats span { background: white; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
-  .expand-icon { font-size: 0.9rem; transition: transform 0.2s; display: inline-block; width: 18px; text-align: center; }
-  .eco-group.collapsed .eco-detail-wrap { display: none; }
-  .eco-group.collapsed .expand-icon { transform: rotate(-90deg); }
-  .eco-detail-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  .eco-detail-table th { background: #f4faf2; color: #1a3e1a; padding: 8px 10px; font-weight: 600; border-bottom: 1px solid #ddecd8; }
-  .eco-detail-table td { padding: 6px 10px; border-bottom: 1px solid #ecf3e8; }
-
-  /* Aides */
-  .aides-info-panel { background: #eef5ea; margin: 0 0 20px 0; padding: 15px 20px; border-radius: 12px; border-left: 6px solid #2d6a2f; }
-  .aides-info-grid { display: flex; flex-wrap: wrap; gap: 12px; }
-  .aides-info-item { background: white; border-radius: 8px; padding: 8px 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); flex: 1 1 180px; border: 1px solid #deecda; }
-  .aides-info-label { font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: #557055; }
-  .aides-info-value { font-size: 0.95rem; font-weight: 500; margin-top: 4px; }
-  .aides-card { background: white; border: 1px solid #deecda; border-radius: 10px; margin-bottom: 8px; max-width: 560px; }
-  .aides-card-header { display: flex; justify-content: flex-start; align-items: center; gap: 12px; padding: 8px 14px; font-weight: 600; font-size: 0.88rem; }
-  .aides-status { font-weight: 700; padding: 3px 12px; border-radius: 20px; font-size: 0.78rem; white-space: nowrap; flex-shrink: 0; }
-  .aides-status-true { background: #dcfce7; color: #15803d; }
-  .aides-status-false { background: #fee2e2; color: #b91c1c; }
-  .aides-status-other { background: #f0f0f0; color: #334155; }
-
-  /* Carte */
-  #map-container { display: flex; flex-direction: column; gap: 16px; }
-  .map-toolbar { background: white; border-radius: 16px; padding: 12px 16px; border: 1px solid #deecda; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
-  .layer-control label { display: inline-flex; align-items: center; gap: 6px; margin-right: 20px; cursor: pointer; font-size: 0.85rem; }
-  #map { height: 500px; width: 100%; border-radius: 16px; border: 1px solid #deecda; background: #d4e6d4; z-index: 1; }
-  .map-legend { background: white; border-radius: 12px; padding: 12px 16px; border: 1px solid #deecda; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
-  .legend-items { display: flex; flex-wrap: wrap; gap: 12px; }
-  .legend-color { width: 18px; height: 12px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
-  .legend-line { width: 24px; height: 3px; display: inline-block; margin-right: 4px; vertical-align: middle; }
-  .legend-point { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: middle; }
-
-  /* Loading */
-  #loading { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.85); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
-  #loading.show { display: flex; }
-  .spinner { width: 48px; height: 48px; border: 5px solid #d4e2cf; border-top-color: #2d6a2f; border-radius: 50%; animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Panneau SNA */
-  #map-sna-panel { background: white; border-radius: 16px; border: 1px solid #deecda; overflow: hidden; }
-  .sna-panel-header { background: #eef5ea; padding: 10px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; border-bottom: 1px solid #ddecd8; user-select: none; }
+  /* ── Panneau SNA dans la carte ── */
+  #map-sna-panel {
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #deecda;
+    overflow: hidden;
+  }
+  .sna-panel-header {
+    background: #eef5ea;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #ddecd8;
+    user-select: none;
+  }
   .sna-panel-header:hover { background: #e3f0dd; }
-  .sna-panel-title { font-weight: 700; font-size: 0.9rem; color: #1f5422; flex: 1; }
-  .sna-panel-body { padding: 12px 14px; }
+  .sna-panel-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #1f5422;
+    flex: 1;
+  }
+  .sna-panel-body {
+    padding: 12px 14px;
+  }
   .sna-panel-body.collapsed { display: none; }
-  .sna-filter-cat { margin-bottom: 8px; }
+
+  /* Catégorie SNA dans le panneau filtres */
+  .sna-filter-cat {
+    margin-bottom: 8px;
+  }
   .sna-filter-cat:last-child { margin-bottom: 0; }
-  #map-and-sna-wrapper { display: grid; grid-template-columns: 1fr 260px; gap: 14px; align-items: start; }
-  @media (max-width: 900px) { #map-and-sna-wrapper { grid-template-columns: 1fr; } }
-  
-  .surface-progress { background: #e0ecd8; border-radius: 20px; height: 10px; overflow: hidden; }
-  .surface-progress-bar { background: #2d6a2f; height: 100%; border-radius: 20px; transition: width 0.3s ease; }
-  .comp-row { display: grid; grid-template-columns: 2fr 1.5fr 1.5fr 1.2fr; border-bottom: 1px solid #ecf3e8; }
-  .comp-cell { padding: 10px 14px; display: flex; align-items: center; }
-  @media (max-width: 768px) { .tabs { padding: 0 12px; } .tab-btn { padding: 8px 12px; font-size: 0.75rem; } }
+
+  /* Layout carte + panneau SNA côte à côte sur grands écrans */
+  #map-and-sna-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 14px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    #map-and-sna-wrapper {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 </head>
 <body>
@@ -158,7 +79,10 @@
 
 <div id="app-screen" style="display:none;">
   <div class="app-header">
-    <div><h1>🌿 PAC 2026 — Visualiseur dossier + Carte</h1><div class="pacage-info" id="pacage-info"></div></div>
+    <div>
+      <h1>🌿 PAC 2026 — Visualiseur dossier + Carte</h1>
+      <div class="pacage-info" id="pacage-info"></div>
+    </div>
     <button class="btn-reload" id="reset-btn">⟳ Charger un autre fichier</button>
   </div>
   
@@ -179,71 +103,448 @@
     <button class="tab-btn" data-tab="bcae7">🌾 BCAE7 diversité</button>
   </div>
 
-  <div id="tab-parcelles" class="tab-content"><div class="toolbar"><input type="text" id="search-parc" placeholder="🔍 Rechercher"><select id="filter-code"></select><select id="filter-surf"><option value="">Toutes surfaces</option><option value="TA">🌱 Terre arable (TA)</option><option value="PP">🐄 Prairie permanente (PP)</option><option value="CP">🌳 Culture permanente (CP)</option></select><div class="stats-badge" id="stats-parc">— parcelles</div></div><div class="table-wrap"><table id="table-parcelles"><thead><tr><th data-col="ilot_num">Îlot</th><th data-col="num_parcelle">N° Parc.</th><th data-col="commune">Commune</th><th data-col="code">Code</th><th data-col="precision">Préc.</th><th data-col="nom_culture">Culture</th><th data-col="precision_label">Libellé</th><th data-col="surface_cat">Type</th><th data-col="eco">Cat. éco</th><th data-col="area_ha">Surface (ha)</th><th data-col="surface_admissible_ha">Surf. adm. (ha)</th><th data-col="culture_sec">Culture sec.</th></tr></thead><tbody id="tbody-parcelles"></tbody></table></div></div>
-  <div id="tab-synthese" class="tab-content"><div id="synth-summary"></div><div id="synth-charts" style="display:flex;flex-wrap:wrap;gap:20px"></div><div class="table-wrap"><table><thead><tr><th>Code</th><th>Culture</th><th>Préc.</th><th>Libellé</th><th>Type</th><th>Cat. éco</th><th>Section</th><th>Nb</th><th>Surface (ha)</th><th>Surf. adm. (ha)</th></tr></thead><tbody id="tbody-synth"></tbody></table></div></div>
-  <div id="tab-ecoregime" class="tab-content"><div id="eco-summary"></div><div id="ecoregime-container"></div></div>
-  <div id="tab-ilots" class="tab-content"><div id="ilot-summary"></div><div id="ilots-container"></div></div>
-  <div id="tab-maec" class="tab-content"><div id="maec-summary"></div><div id="maec-container"></div></div>
-  <div id="tab-balises" class="tab-content"><div class="toolbar"><input type="text" id="search-balises" placeholder="🔍 Rechercher"><div class="stats-badge" id="stats-balises">—</div></div><div class="table-wrap"><table><thead><tr><th>Îlot</th><th>N°</th><th>Code</th><th>Préc.</th><th>Culture</th><th>semences</th><th>fermiers</th><th>deshydratation</th><th>derogation</th><th>culture-secondaire</th><th>accident</th><th>IAE</th><th>phyto</th></tr></thead><tbody id="tbody-balises"></tbody></table></div></div>
-  <div id="tab-pp" class="tab-content"><div id="pp-summary"></div><div class="toolbar"><input type="text" id="search-pp" placeholder="🔍"><div class="stats-badge" id="stats-pp">—</div></div><div class="table-wrap"><table><thead><tr><th>Îlot</th><th>N°</th><th>Code</th><th>Préc.</th><th>Culture</th><th>reconv-pp</th><th>retournement</th><th>reimplantation</th><th>conduite-bio</th><th>type-bio</th><th>maraichage</th><th>surface-cible</th><th>elevage-mono</th></tr></thead><tbody id="tbody-pp"></tbody></table></div></div>
-  <div id="tab-aides" class="tab-content active"><div id="aides-result-area"></div></div>
-  <div id="tab-carte" class="tab-content"><div id="map-container"><div class="map-toolbar"><div class="layer-control"><strong>🗂️ Couches</strong><label><input type="checkbox" id="toggleIlots" checked> 🗺️ Îlots PAC</label><label><input type="checkbox" id="toggleParcelles" checked> 🌾 Parcelles</label><label><input type="checkbox" id="toggleMaec" checked> 🌿 MAEC</label><label><input type="checkbox" id="toggleSNA" checked> 🏗️ SNA</label></div><div class="stats-badge" id="map-stats">Carte prête</div></div><div id="map-and-sna-wrapper"><div id="map"></div><div id="map-sna-panel"><div class="sna-panel-header" onclick="const b=this.nextElementSibling, ic=this.querySelector('.sna-toggle-icon'); b.classList.toggle('collapsed'); ic.textContent=b.classList.contains('collapsed')?'▶':'▼'"><span class="sna-panel-title">🏗️ Filtres SNA</span><span class="sna-toggle-icon">▼</span></div><div class="sna-panel-body" id="sna-map-filters"><span style="color:#aaa">Chargement…</span></div></div></div><div class="map-legend"><strong>🎨 Légende</strong><div id="map-legend-items" class="legend-items"></div></div></div></div>
-  <div id="tab-cab" class="tab-content"><div id="cab-summary"></div><div id="cab-container"></div></div>
-  <div id="tab-comparaison" class="tab-content"><div id="comp-result-area"></div></div>
-  <div id="tab-eligibilite" class="tab-content"><div><div style="margin-bottom:20px"><h2 style="color:#1f5422;">🎯 Analyseur d'éligibilité</h2><div style="color:#4a6741">Analyse basée sur le fichier XML</div></div><div id="elig-no-file" style="background:#fff3e0;padding:12px;border-radius:12px">⚠️ Chargez un fichier XML</div><div id="elig-results" style="display:none"><div class="eco-summary-bar"><div class="eco-kpi"><div class="val" id="elig-stat-parcelles">—</div><div class="lbl">Parcelles</div></div><div class="eco-kpi"><div class="val" id="elig-stat-eligibles">—</div><div class="lbl">Éligibles</div></div><div class="eco-kpi"><div class="val" id="elig-stat-aides-dem">—</div><div class="lbl">Aides demandées</div></div><div class="eco-kpi"><div class="val" id="elig-stat-aides-elig">—</div><div class="lbl">Éligibles</div></div><div class="eco-kpi"><div class="val" id="elig-stat-manquantes">—</div><div class="lbl">Non demandées</div></div></div><div id="elig-alert" style="display:none"></div><div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap"><div style="flex:1;background:#f8faf6;padding:16px;border-radius:16px"><h3>📋 Demandées</h3><div id="elig-list-dem"></div></div><div style="flex:1;background:#f8faf6;padding:16px;border-radius:16px"><h3>✅ Éligibles</h3><div id="elig-list-elig"></div></div><div style="flex:1;background:#f8faf6;padding:16px;border-radius:16px"><h3>⚠️ À ne pas oublier</h3><div id="elig-list-manq"></div></div></div><div class="table-wrap"><table><thead><tr><th>Îlot</th><th>Parcelle</th><th>Code</th><th>Préc.</th><th>Surface (ares)</th><th>Aides éligibles</th><th>Demandée ?</th></tr></thead><tbody id="elig-tbody"></tbody></table></div></div></div></div>
-  <div id="tab-bcae7" class="tab-content"><div><div style="margin-bottom:24px"><h2 style="color:#1f5422;">🌾 BCAE7 - Diversité des cultures</h2><div style="color:#4a6741">Vérification des critères d'exemption</div></div><div id="bcae7-no-file" style="background:#fff3e0;padding:12px;border-radius:12px">⚠️ Chargez un fichier XML</div><div id="bcae7-results" style="display:none"><div class="eco-summary-bar"><div class="eco-kpi"><div class="val" id="bcae7-stat-SAU">—</div><div class="lbl">SAU (ha)</div></div><div class="eco-kpi"><div class="val" id="bcae7-stat-TA">—</div><div class="lbl">TA (ha)</div></div><div class="eco-kpi"><div class="val" id="bcae7-stat-PP">—</div><div class="lbl">PP (ha)</div></div><div class="eco-kpi"><div class="val" id="bcae7-stat-PT">—</div><div class="lbl">PT (ha)</div></div></div><div id="bcae7-exemption-card" style="background:#f8faf6;border-radius:16px;padding:20px;margin-bottom:24px"><div style="display:flex;align-items:center;gap:16px"><div style="font-size:2rem" id="bcae7-exemption-icon">🔍</div><div><div style="font-weight:700" id="bcae7-exemption-title">Analyse</div><div style="color:#557055" id="bcae7-exemption-detail"></div></div><div id="bcae7-exemption-badge" style="padding:8px 20px;border-radius:40px">—</div></div></div><div style="display:flex;flex-wrap:wrap;gap:20px;margin-bottom:24px"><div style="flex:1;border:1px solid #deecda;border-radius:16px;padding:12px"><div><strong>🌿 BIO</strong></div><div><span id="bcae7-bio-percent">—</span></div><div id="bcae7-bio-status"></div></div><div style="flex:1;border:1px solid #deecda;border-radius:16px;padding:12px"><div><strong>📐 SAU &lt; 30 ha</strong></div><div><span id="bcae7-sau-value">—</span> ha</div><div id="bcae7-sau-status"></div></div><div style="flex:1;border:1px solid #deecda;border-radius:16px;padding:12px"><div><strong>🌱 TA &lt; 10 ha</strong></div><div><span id="bcae7-ta-value">—</span> ha</div><div id="bcae7-ta-status"></div></div></div><div style="margin-top:20px"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Culture</th><th>Surface TA (ha)</th><th>%</th></tr></thead><tbody id="bcae7-cultures-tbody"></tbody></table></div></div></div></div></div>
-  <div id="tab-sna" class="tab-content"><div id="sna-summary"></div><div class="toolbar"><input type="text" id="search-sna" placeholder="🔍 Rechercher SNA"><div class="stats-badge" id="stats-sna">—</div></div><div class="table-wrap"><table><thead><tr><th>N° SNA</th><th>Catégorie</th><th>Type</th><th>Surface (ha)</th><th>Îlot(s)</th><th>Parcelle</th><th>Géo</th></tr></thead><tbody id="tbody-sna"></tbody></table></div></div>
+  <!-- Onglet Parcelles -->
+  <div id="tab-parcelles" class="tab-content">
+    <div class="toolbar">
+      <input type="text" id="search-parc" placeholder="🔍 Rechercher (culture, code, îlot…)" oninput="window.filterParcelles?.()">
+      <select id="filter-code" onchange="window.filterParcelles?.()"><option value="">Tous les codes</option></select>
+      <select id="filter-surf" onchange="window.filterParcelles?.()">
+        <option value="">Toutes surfaces</option>
+        <option value="TA">🌱 Terre arable (TA)</option>
+        <option value="PP">🐄 Prairie permanente (PP)</option>
+        <option value="CP">🌳 Culture permanente (CP)</option>
+      </select>
+      <div class="stats-badge" id="stats-parc">— parcelles</div>
+    </div>
+    <div class="table-wrap">
+      <table id="table-parcelles">
+        <thead>
+          <tr>
+            <th onclick="window.sortTable?.('ilot_num')" data-col="ilot_num">Îlot ↕</th>
+            <th onclick="window.sortTable?.('num_parcelle')" data-col="num_parcelle">N° Parc. ↕</th>
+            <th onclick="window.sortTable?.('commune')" data-col="commune">Commune ↕</th>
+            <th onclick="window.sortTable?.('code')" data-col="code">Code ↕</th>
+            <th onclick="window.sortTable?.('precision')" data-col="precision">Préc. ↕</th>
+            <th onclick="window.sortTable?.('nom_culture')" data-col="nom_culture">Culture ↕</th>
+            <th onclick="window.sortTable?.('precision_label')" data-col="precision_label">Libellé précision ↕</th>
+            <th onclick="window.sortTable?.('surface_cat')" data-col="surface_cat">Surf. agri. ↕</th>
+            <th onclick="window.sortTable?.('eco')" data-col="eco">Catégorie écorégime ↕</th>
+            <th onclick="window.sortTable?.('area_ha')" data-col="area_ha">Surface calc. (ha) ↕</th>
+            <th onclick="window.sortTable?.('surface_admissible_ha')" data-col="surface_admissible_ha">Surf. adm. (ha) ↕</th>
+            <th onclick="window.sortTable?.('culture_sec')" data-col="culture_sec">Culture sec. ↕</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-parcelles"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Onglet Synthèse par culture -->
+  <div id="tab-synthese" class="tab-content">
+    <div id="synth-summary" class="synth-summary"></div>
+    <div id="synth-charts" style="display:flex;flex-wrap:wrap;gap:20px;margin-bottom:20px;align-items:flex-start"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Code</th><th>Culture</th><th>Code préc.</th><th>Libellé précision</th><th>Surf. agri.</th><th>Catégorie écorégime</th><th>Section PAC</th><th>Nb parcelles</th><th>Surface calc. (ha)</th><th>Surf. adm. (ha)</th></tr></thead>
+        <tbody id="tbody-synth"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Onglet Écorégime -->
+  <div id="tab-ecoregime" class="tab-content">
+    <div id="eco-summary" class="eco-summary-bar"></div>
+    <div id="ecoregime-container"></div>
+  </div>
+
+  <!-- Onglet Synthèse par îlot -->
+  <div id="tab-ilots" class="tab-content">
+    <div id="ilot-summary" class="eco-summary-bar"></div>
+    <div id="ilots-container"></div>
+  </div>
+
+  <!-- Onglet MAEC -->
+  <div id="tab-maec" class="tab-content">
+    <div id="maec-summary" class="eco-summary-bar"></div>
+    <div id="maec-container"></div>
+  </div>
+
+  <!-- Onglet Détail parcelles -->
+  <div id="tab-balises" class="tab-content">
+    <div id="balises-summary" class="eco-summary-bar"></div>
+    <div class="toolbar">
+      <input type="text" id="search-balises" placeholder="🔍 Rechercher (îlot, code, culture…)" oninput="window.filterBalises?.()">
+      <div class="stats-badge" id="stats-balises">— parcelles</div>
+    </div>
+    <div class="table-wrap">
+      <table id="table-balises">
+        <thead><tr><th>Îlot</th><th>N° Parc.</th><th>Code culture</th><th>Précision</th><th>Culture</th><th>production-semences</th><th>production-fermiers</th><th>deshydratation</th><th>derogation-ukraine</th><th>culture-secondaire</th><th>accident-culture</th><th>declare-IAE</th><th>prise-connaissance-interdiction-phyto</th></tr></thead>
+        <tbody id="tbody-balises"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Onglet PP / Bio / MAEC -->
+  <div id="tab-pp" class="tab-content">
+    <div id="pp-summary" class="eco-summary-bar"></div>
+    <div class="toolbar">
+      <input type="text" id="search-pp" placeholder="🔍 Rechercher (îlot, code, culture…)" oninput="window.filterPP?.()">
+      <div class="stats-badge" id="stats-pp">— parcelles</div>
+    </div>
+    <div class="table-wrap">
+      <table id="table-pp">
+        <thead><tr><th>Îlot</th><th>N° Parc.</th><th>Code culture</th><th>Précision</th><th>Culture</th><th>reconversion-pp</th><th>retournement-pp</th><th>obligation-reimplantation-pp</th><th>conduite-bio</th><th>type-conduite-bio</th><th>conduite-maraichage</th><th>surface-cible</th><th>elevage-monogastrique</th></tr></thead>
+        <tbody id="tbody-pp"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Onglet Aides demandées -->
+  <div id="tab-aides" class="tab-content active">
+    <div id="aides-result-area" style="padding:4px 0"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       Onglet Carte — avec panneau SNA latéral
+       ═══════════════════════════════════════════════════ -->
+  <div id="tab-carte" class="tab-content">
+    <div id="map-container">
+
+      <!-- Barre d'outils couches principales -->
+      <div class="map-toolbar">
+        <div class="layer-control">
+          <strong>🗂️ Couches</strong>
+          <label><input type="checkbox" id="toggleIlots" checked> 🗺️ Îlots PAC</label>
+          <label><input type="checkbox" id="toggleParcelles" checked> 🌾 Parcelles culturales</label>
+          <label><input type="checkbox" id="toggleMaec" checked> 🌿 MAEC</label>
+          <label style="border-left:1px solid rgba(0,0,0,0.1);padding-left:16px;margin-left:4px">
+            <input type="checkbox" id="toggleSNA" checked> 🏗️ SNA
+          </label>
+        </div>
+        <div class="stats-badge" id="map-stats">Carte prête</div>
+      </div>
+
+      <!-- Carte + panneau filtres SNA -->
+      <div id="map-and-sna-wrapper">
+        <!-- Carte -->
+        <div id="map"></div>
+
+        <!-- Panneau filtres SNA -->
+        <div id="map-sna-panel">
+          <div class="sna-panel-header" onclick="
+            const body = this.nextElementSibling;
+            const icon = this.querySelector('.sna-toggle-icon');
+            const collapsed = body.classList.toggle('collapsed');
+            icon.textContent = collapsed ? '▶' : '▼';
+          ">
+            <span class="sna-panel-title">🏗️ Filtres SNA</span>
+            <span class="sna-toggle-icon" style="color:#557055;font-size:0.8rem">▼</span>
+          </div>
+          <div class="sna-panel-body" id="sna-map-filters">
+            <!-- Rempli dynamiquement par carto.js -->
+            <span style="color:#aaa;font-size:0.8rem">Chargement…</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Légende -->
+      <div class="map-legend">
+        <strong>🎨 Légende</strong>
+        <div id="map-legend-items" class="legend-items">Chargement…</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Onglet PAC CAB — Engagements bio -->
+  <div id="tab-cab" class="tab-content">
+    <div id="cab-summary" class="eco-summary-bar"></div>
+    <div id="cab-container"></div>
+  </div>
+
+  <!-- Onglet Comparaison N-1 / N -->
+  <div id="tab-comparaison" class="tab-content">
+    <div id="comp-result-area" style="padding:4px 0"></div>
+  </div>
+
+
+  <!-- Onglet Éligibilité aides couplées végétales -->
+  <div id="tab-eligibilite" class="tab-content">
+    <div style="max-width:100%">
+
+      <!-- En-tête -->
+      <div style="margin-bottom:20px">
+        <h2 style="font-size:1.3rem;color:#1f5422;margin:0 0 6px 0;display:flex;align-items:center;gap:10px">
+          🎯 Analyseur d'éligibilité
+          <span style="font-size:0.78rem;font-weight:normal;background:#eef5ea;padding:4px 12px;border-radius:40px;color:#2c6e3c">Aides couplées végétales</span>
+        </h2>
+        <div style="color:#4a6741;border-left:4px solid #7bb86c;padding-left:14px;font-size:0.88rem">
+          Analyse automatique basée sur le fichier XML déjà chargé — détecte les aides éligibles et les compare avec celles demandées.
+        </div>
+      </div>
+
+      <!-- Zone message si pas de fichier -->
+      <div id="elig-no-file" style="background:#fff3e0;border-left:4px solid #e6a017;padding:12px 16px;border-radius:12px;margin-bottom:16px;font-size:0.88rem">
+        ⚠️ Chargez d'abord un fichier XML via l'écran d'accueil pour lancer l'analyse.
+      </div>
+
+      <!-- Résultats -->
+      <div id="elig-results" style="display:none">
+
+        <!-- Stats globales -->
+        <div class="eco-summary-bar" style="margin-bottom:20px">
+          <div class="eco-kpi"><div class="val" id="elig-stat-parcelles">—</div><div class="lbl">Parcelles analysées</div></div>
+          <div class="eco-kpi"><div class="val" id="elig-stat-eligibles">—</div><div class="lbl">Parcelles éligibles</div></div>
+          <div class="eco-kpi"><div class="val" id="elig-stat-aides-dem">—</div><div class="lbl">Aides demandées</div></div>
+          <div class="eco-kpi"><div class="val" id="elig-stat-aides-elig">—</div><div class="lbl">Aides éligibles</div></div>
+          <div class="eco-kpi"><div class="val" id="elig-stat-manquantes" style="color:#e6a017">—</div><div class="lbl">Aides non demandées</div></div>
+        </div>
+
+        <!-- Alerte aides manquantes -->
+        <div id="elig-alert" style="display:none;background:#fff3e0;border-left:4px solid #e6a017;padding:14px 18px;border-radius:12px;margin-bottom:20px;font-size:0.88rem"></div>
+
+        <!-- 3 colonnes comparaison -->
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:20px">
+          <div style="flex:1;min-width:240px;background:#f8faf6;border-radius:16px;padding:16px 18px;border:1px solid #e2ecd9">
+            <h3 style="margin:0 0 10px 0;color:#1f5422;font-size:0.9rem;display:flex;align-items:center;gap:8px">
+              📋 Aides demandées
+              <span style="background:#2c6e3c;color:white;border-radius:40px;padding:1px 10px;font-size:0.72rem" id="elig-count-dem">0</span>
+            </h3>
+            <div id="elig-list-dem"></div>
+          </div>
+          <div style="flex:1;min-width:240px;background:#f8faf6;border-radius:16px;padding:16px 18px;border:1px solid #e2ecd9">
+            <h3 style="margin:0 0 10px 0;color:#1f5422;font-size:0.9rem;display:flex;align-items:center;gap:8px">
+              ✅ Aides éligibles
+              <span style="background:#2c6e3c;color:white;border-radius:40px;padding:1px 10px;font-size:0.72rem" id="elig-count-elig">0</span>
+            </h3>
+            <div id="elig-list-elig"></div>
+          </div>
+          <div style="flex:1;min-width:240px;background:#f8faf6;border-radius:16px;padding:16px 18px;border:1px solid #e2ecd9">
+            <h3 style="margin:0 0 10px 0;color:#e6a017;font-size:0.9rem;display:flex;align-items:center;gap:8px">
+              ⚠️ À ne pas oublier
+              <span style="background:#e6a017;color:white;border-radius:40px;padding:1px 10px;font-size:0.72rem" id="elig-count-manq">0</span>
+            </h3>
+            <div id="elig-list-manq"></div>
+          </div>
+        </div>
+
+        <!-- Tableau parcelles éligibles -->
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Îlot</th>
+                <th>Parcelle</th>
+                <th>Code</th>
+                <th>Précision</th>
+                <th>Surface (ares)</th>
+                <th>Aides éligibles</th>
+                <th>Demandée ?</th>
+              </tr>
+            </thead>
+            <tbody id="elig-tbody"></tbody>
+          </table>
+        </div>
+
+      </div><!-- /elig-results -->
+    </div>
+  </div>
+
+<!-- Onglet BCAE7 - Diversité des cultures -->
+<div id="tab-bcae7" class="tab-content">
+  <div style="max-width:100%">
+
+    <!-- En-tête -->
+    <div style="margin-bottom:24px">
+      <h2 style="font-size:1.3rem;color:#1f5422;margin:0 0 6px 0;display:flex;align-items:center;gap:10px">
+        🌾 BCAE7 - Diversité des cultures
+        <span style="font-size:0.78rem;font-weight:normal;background:#eef5ea;padding:4px 12px;border-radius:40px;color:#2c6e3c">Analyse automatique</span>
+      </h2>
+      <div style="color:#4a6741;border-left:4px solid #7bb86c;padding-left:14px;font-size:0.88rem">
+        Vérification des critères d'exemption et analyse de la diversité des cultures sur les Terres arables (TA).
+      </div>
+    </div>
+
+    <!-- Zone message si pas de fichier -->
+    <div id="bcae7-no-file" style="background:#fff3e0;border-left:4px solid #e6a017;padding:12px 16px;border-radius:12px;margin-bottom:16px;font-size:0.88rem">
+      ⚠️ Chargez d'abord un fichier XML via l'écran d'accueil pour lancer l'analyse.
+    </div>
+
+    <!-- Résultats -->
+    <div id="bcae7-results" style="display:none">
+
+      <!-- Cartes de synthèse -->
+      <div class="eco-summary-bar" style="margin-bottom:20px;flex-wrap:wrap">
+        <div class="eco-kpi"><div class="val" id="bcae7-stat-SAU">—</div><div class="lbl">SAU totale (ha)</div></div>
+        <div class="eco-kpi"><div class="val" id="bcae7-stat-TA">—</div><div class="lbl">Terres arables (ha)</div></div>
+        <div class="eco-kpi"><div class="val" id="bcae7-stat-PP">—</div><div class="lbl">Prairies permanentes (ha)</div></div>
+        <div class="eco-kpi"><div class="val" id="bcae7-stat-PT">—</div><div class="lbl">Prairies temporaires (ha)</div></div>
+      </div>
+
+      <!-- Statut exemption -->
+      <div id="bcae7-exemption-card" style="background:#f8faf6;border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid #deecda">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="font-size:2rem" id="bcae7-exemption-icon">🔍</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:1.1rem" id="bcae7-exemption-title">Analyse en cours...</div>
+            <div style="color:#557055;font-size:0.85rem;margin-top:4px" id="bcae7-exemption-detail"></div>
+          </div>
+          <div id="bcae7-exemption-badge" style="padding:8px 20px;border-radius:40px;font-weight:700">—</div>
+        </div>
+      </div>
+
+      <!-- Critères détaillés -->
+      <div style="display:flex;flex-wrap:wrap;gap:20px;margin-bottom:24px">
+        <!-- Carte exempté si BIO -->
+        <div style="flex:1;min-width:220px;background:white;border-radius:16px;border:1px solid #deecda;overflow:hidden">
+          <div style="background:#f4faf2;padding:12px 16px;font-weight:700;border-bottom:1px solid #deecda">🌿 1. Surface certifiée BIO ou conversion</div>
+          <div style="padding:16px">
+          <div style="font-size:1.6rem;font-weight:700" id="bcae7-bio-percent">—</div>
+          <div style="color:#888;font-size:0.8rem">% de la SAU certifiée BIO</div>
+            <div style="margin-top:12px;font-size:0.85rem" id="bcae7-bio-detail">—</div>
+            <div id="bcae7-bio-status" style="margin-top:10px;padding:6px;border-radius:10px;text-align:center;font-weight:600">—</div>
+          </div>
+        </div>
+
+        <!-- Carte SAU < 30 ha -->
+        <div style="flex:1;min-width:180px;background:white;border-radius:16px;border:1px solid #deecda;overflow:hidden">
+          <div style="background:#f4faf2;padding:12px 16px;font-weight:700;border-bottom:1px solid #deecda">📐 2. SAU totale</div>
+          <div style="padding:16px">
+            <div style="font-size:1.6rem;font-weight:700" id="bcae7-sau-value">—</div>
+            <div style="color:#888;font-size:0.8rem">hectares</div>
+            <div style="margin-top:12px;padding:6px;border-radius:10px;text-align:center;font-weight:600" id="bcae7-sau-status">—</div>
+          </div>
+        </div>
+
+        <!-- Carte TA < 10 ha -->
+        <div style="flex:1;min-width:180px;background:white;border-radius:16px;border:1px solid #deecda;overflow:hidden">
+          <div style="background:#f4faf2;padding:12px 16px;font-weight:700;border-bottom:1px solid #deecda">🌱 3. Terres arables</div>
+          <div style="padding:16px">
+            <div style="font-size:1.6rem;font-weight:700" id="bcae7-ta-value">—</div>
+            <div style="color:#888;font-size:0.8rem">hectares</div>
+            <div style="margin-top:12px;padding:6px;border-radius:10px;text-align:center;font-weight:600" id="bcae7-ta-status">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:20px;margin-bottom:24px">
+        <!-- Carte >75% TA en prairies temporaires + légumineuses fourragères + jachères -->
+        <div style="flex:1;min-width:260px;background:white;border-radius:16px;border:1px solid #deecda;overflow:hidden">
+          <div style="background:#f4faf2;padding:12px 16px;font-weight:700;border-bottom:1px solid #deecda">🍃 4. TA en couverts dérogatoires</div>
+          <div style="padding:16px">
+            <div style="font-size:1.6rem;font-weight:700" id="bcae7-cover-percent">—</div>
+            <div style="color:#888;font-size:0.75rem">Prairies temporaires + luzernes + jachères + fourragères</div>
+            <div class="surface-progress" style="margin:12px 0;height:10px">
+              <div class="surface-progress-bar" id="bcae7-cover-bar" style="width:0%;background:#2d6a2f"></div>
+            </div>
+            <div id="bcae7-cover-status" style="margin-top:8px;padding:6px;border-radius:10px;text-align:center;font-weight:600">—</div>
+            <div style="margin-top:12px;font-size:0.75rem;color:#888" id="bcae7-cover-detail"></div>
+          </div>
+        </div>
+
+        <!-- Carte >75% SAU en prairies (PP+PT) -->
+        <div style="flex:1;min-width:260px;background:white;border-radius:16px;border:1px solid #deecda;overflow:hidden">
+          <div style="background:#f4faf2;padding:12px 16px;font-weight:700;border-bottom:1px solid #deecda">🐄 5. Prairies dans SAU</div>
+          <div style="padding:16px">
+            <div style="font-size:1.6rem;font-weight:700" id="bcae7-prairie-percent">—</div>
+            <div style="color:#888;font-size:0.75rem">Prairies permanentes + temporaires / SAU totale</div>
+            <div class="surface-progress" style="margin:12px 0;height:10px">
+              <div class="surface-progress-bar" id="bcae7-prairie-bar" style="width:0%;background:#5aad5c"></div>
+            </div>
+            <div id="bcae7-prairie-status" style="margin-top:8px;padding:6px;border-radius:10px;text-align:center;font-weight:600">—</div>
+          </div>
+        </div>
+      </div>
+
+<!-- Carte Résultat diversification -->
+<div style="background:white;border-radius:16px;border:1px solid #deecda;overflow:hidden;margin-bottom:24px">
+    <div style="background:#f4faf2;padding:12px 16px;font-weight:700;border-bottom:1px solid #deecda">
+        🌾 Résultat BCAE7 - Diversification des cultures (si non exempté)
+    </div>
+    <div style="padding:16px;display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:16px">
+        <div style="flex:2;min-width:200px">
+            <div style="font-size:1.4rem;font-weight:700" id="bcae7-diversif-status">—</div>
+            <div style="color:#557055;font-size:0.85rem;margin-top:6px" id="bcae7-diversif-detail"></div>
+            <div style="color:#888;font-size:0.75rem;margin-top:4px" id="bcae7-diversif-rule"></div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <div style="background:#f8faf6;border-radius:12px;padding:10px 18px;text-align:center">
+                <div style="font-size:0.7rem;color:#888">TA (ha)</div>
+                <div style="font-size:1.4rem;font-weight:700" id="bcae7-ta-display">—</div>
+            </div>
+            <div style="background:#f8faf6;border-radius:12px;padding:10px 18px;text-align:center">
+                <div style="font-size:0.7rem;color:#888">Groupes différents</div>
+                <div style="font-size:1.4rem;font-weight:700" id="bcae7-nb-groupes">—</div>
+                <div style="font-size:0.7rem;color:#888" id="bcae7-seuil-required">—</div>
+            </div>
+        </div>
+    </div>
+    <div id="bcae7-diversif-bar-container" style="padding:0 16px 16px 16px"></div>
 </div>
 
-<script type="module">
-import { lookup, resetColorCache } from './data.js';
-import { parseXML } from './parser.js';
-import { setData, renderParcelles, renderSynthese, renderBalises, renderPP, filterParcelles, filterBalises, filterPP, sortTable } from './tables.js';
-import { setEcoData, renderEcoregime } from './ecoregime.js';
-import { setMaecData, renderMaec } from './maec.js';
-import { renderAides } from './aides.js';
-import { initMap, invalidateMapSize, resetMap } from './carto.js';
-import { setIlotsData, renderIlots } from './ilots.js';
-import { setSNAdata, renderSNA, filterSNA, sortSNA } from './sna.js';
-import { setDocN, renderComparaison, resetComparaison, setIlotsN } from './comparaison.js';
-import { renderEligibilite } from './eligibilite.js';
-import { setBCAE7Data, renderBCAE7 } from './bcae7.js';
-import { setCabData, renderCab } from './cab.js';
 
-let allRows = [], allMaecRows = [], lastXmlDoc = null, ilotsGeo = [], parcelsGeo = [], maecGeo = { surfaciques: [], lineaires: [], ponctuelles: [] }, snaList = [], isProcessing = false;
+      <!-- Tableau détaillé par culture sur TA -->
+      <div style="margin-top:16px">
+        <div style="background:#eef5ea;padding:12px 16px;border-radius:12px;margin-bottom:12px;font-weight:700">
+          📋 Détail des cultures sur Terres arables (TA)
+        </div>
+        <div class="table-wrap">
+          <table style="width:100%">
+            <thead>
+              <tr style="background:#2d6a2f;color:white">
+                <th>Code</th>
+                <th>Culture</th>
+                <th>Précision</th>
+                <th>Groupe BCAE7</th>
+                <th>Surface TA (ha)</th>
+                <th>% des TA</th>
+                <th>Culture d'hiver/printemps</th>
+              </tr>
+            </thead>
+            <tbody id="bcae7-cultures-tbody"></tbody>
+            <tfoot id="bcae7-cultures-tfoot" style="background:#eef5ea;font-weight:700"></tfoot>
+          </table>
+        </div>
+      </div>
 
-function renderApp(data) {
-  allRows = data.rows; allMaecRows = data.maecRows || []; ilotsGeo = data.ilotsGeo; parcelsGeo = data.parcelsGeo; maecGeo = data.maecGeo; lastXmlDoc = data.xmlDoc; snaList = data.snaGeo || [];
-  setSNAdata(snaList); setData(allRows); setEcoData(allRows); setMaecData(allMaecRows); setCabData(data.cabRows || []); setIlotsData(allRows); setIlotsN(allRows); setBCAE7Data(allRows); renderBCAE7(); setDocN(lastXmlDoc);
-  const info = document.getElementById('pacage-info'); if(info) info.innerHTML = [data.meta.exploitation, `PACAGE : ${data.meta.pacage}`, `Campagne : ${data.meta.campagne}`].filter(Boolean).join('  |  ');
-  const codes = [...new Set(allRows.map(r=>r.code))].sort();
-  const sel = document.getElementById('filter-code'); if(sel) sel.innerHTML = '<option value="">Tous</option>' + codes.map(c=>`<option value="${c}">${c} — ${lookup(c,'').nom}</option>`).join('');
-  renderParcelles(); renderSynthese(); renderEcoregime(); renderIlots(); renderMaec(); renderCab(); renderBalises(); renderPP(); renderAides(lastXmlDoc); renderComparaison(); renderEligibilite(lastXmlDoc); renderSNA();
-  initMap(ilotsGeo, parcelsGeo, maecGeo, snaList);
-}
+      <!-- Note réglementaire -->
+      <div style="margin-top:24px;background:#f4faf2;border-radius:12px;padding:14px 18px;border-left:4px solid #2d6a2f;font-size:0.78rem;color:#4a6741">
+        <strong>📖 Rappel BCAE7 (2026) :</strong> Pour les exploitations non exemptées, la surface en terres arables doit comporter au moins 3 cultures différentes (dont la culture principale ≤ 75% et les 2 principales ≤ 95% de la sole).<br>
+        Les exemptions s'appliquent si : <strong>1)</strong> 100% des surfaces certifiées BIO/conversion — <strong>2)</strong> TA &lt; 10 ha — <strong>3)</strong> >75% des TA en prairies temporaires, luzernes, jachères ou fourragères — <strong>4)</strong> >75% SAU en prairies (PP+PT) — <strong>5)</strong> SAU &lt; 30 ha.
+      </div>
 
-function handleFile(file) {
-  if(isProcessing) return;
-  if(!file||!file.name.toLowerCase().endsWith('.xml')){ alert('Veuillez sélectionner un fichier XML'); return; }
-  isProcessing=true; const loading=document.getElementById('loading'); if(loading)loading.classList.add('show');
-  const reader=new FileReader();
-  reader.onload=e=>{ try{ const data=parseXML(e.target.result); if(!data.rows.length){ alert('Aucune parcelle'); return; } document.getElementById('upload-screen').style.display='none'; document.getElementById('app-screen').style.display='block'; renderApp(data); }catch(err){ alert('Erreur: '+err.message); }finally{ if(loading)loading.classList.remove('show'); isProcessing=false; } };
-  reader.onerror=()=>{ alert('Erreur lecture'); if(loading)loading.classList.remove('show'); isProcessing=false; };
-  reader.readAsText(file,'ISO-8859-1');
-}
+    </div><!-- /bcae7-results -->
+  </div>
+</div>
 
-function resetApp(){ isProcessing=false; document.getElementById('app-screen').style.display='none'; document.getElementById('upload-screen').style.display='flex'; allRows=[]; allMaecRows=[]; ilotsGeo=[]; parcelsGeo=[]; maecGeo={surfaciques:[],lineaires:[],ponctuelles:[]}; snaList=[]; lastXmlDoc=null; resetColorCache(); resetMap(); resetComparaison(); switchTab('aides'); }
-function switchTab(tabId){ document.querySelectorAll('.tab-btn').forEach(btn=>btn.classList.toggle('active',btn.getAttribute('data-tab')===tabId)); document.querySelectorAll('.tab-content').forEach(content=>content.classList.toggle('active',content.id===`tab-${tabId}`)); if(tabId==='carte')setTimeout(()=>invalidateMapSize(),100); }
-window.filterParcelles=filterParcelles; window.filterBalises=filterBalises; window.filterPP=filterPP; window.sortTable=sortTable; window.switchTab=switchTab; window.resetApp=resetApp; window.filterSNA=filterSNA; window.sortSNA=sortSNA; window.toggleEcoGroup=function(h){ const g=h.closest('.eco-group'); if(g)g.classList.toggle('collapsed'); };
 
-document.addEventListener('DOMContentLoaded',()=>{
-  const dropZone=document.getElementById('drop-zone'), fileInput=document.getElementById('file-input'), uploadBtn=document.getElementById('upload-btn'), resetBtn=document.getElementById('reset-btn');
-  if(uploadBtn) uploadBtn.addEventListener('click',()=>{ fileInput.value=''; fileInput.click(); });
-  if(dropZone){ dropZone.addEventListener('click',()=>{ fileInput.value=''; fileInput.click(); }); dropZone.addEventListener('dragover',e=>{ e.preventDefault(); dropZone.classList.add('drag-over'); }); dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over')); dropZone.addEventListener('drop',e=>{ e.preventDefault(); dropZone.classList.remove('drag-over'); const f=e.dataTransfer.files[0]; if(f)handleFile(f); }); }
-  if(fileInput) fileInput.addEventListener('change',e=>{ const f=e.target.files[0]; if(f)handleFile(f); });
-  if(resetBtn) resetBtn.addEventListener('click',()=>resetApp());
-  document.querySelectorAll('.tab-btn').forEach(btn=>{ const tid=btn.getAttribute('data-tab'); if(tid)btn.addEventListener('click',()=>switchTab(tid)); });
-});
-</script>
+
+  <!-- Onglet SNA -->
+  <div id="tab-sna" class="tab-content">
+    <div id="sna-summary" class="eco-summary-bar"></div>
+    <div class="toolbar">
+      <input type="text" id="search-sna" placeholder="🔍 Rechercher (numéro SNA, catégorie, type…)" oninput="window.filterSNA?.()">
+      <div class="stats-badge" id="stats-sna">— SNA</div>
+    </div>
+    <div class="table-wrap">
+      <table id="table-sna">
+        <thead>
+          <tr>
+            <th onclick="window.sortSNA?.('numero')" data-col="numero">N° SNA ↕</th>
+            <th onclick="window.sortSNA?.('categorie')" data-col="categorie">Catégorie ↕</th>
+            <th onclick="window.sortSNA?.('type')" data-col="type">Type ↕</th>
+            <th onclick="window.sortSNA?.('surface_ha')" data-col="surface_ha">Surface (ha) ↕</th>
+            <th onclick="window.sortSNA?.('ilot')" data-col="ilot">Îlot associé ↕</th>
+            <th onclick="window.sortSNA?.('parcelle')" data-col="parcelle">Parcelle associée ↕</th>
+            <th>Géométrie</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-sna"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
