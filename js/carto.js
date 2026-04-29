@@ -30,6 +30,50 @@ export function resetMap() {
 }
 
 // ===================================================
+// PARSING DES COORDONNÉES (chaîne "x, y" → [lat, lng])
+// ===================================================
+function parseCoord(coordStr) {
+  if (!coordStr) return null;
+  
+  // Si c'est déjà un objet avec lat/lng
+  if (typeof coordStr === 'object' && coordStr.lat !== undefined) {
+    return [coordStr.lat, coordStr.lng];
+  }
+  
+  // Si c'est un tableau [x, y]
+  if (Array.isArray(coordStr) && coordStr.length === 2) {
+    // Vérifier si ce sont des nombres
+    if (typeof coordStr[0] === 'number' && typeof coordStr[1] === 'number') {
+      return [coordStr[1], coordStr[0]]; // [y, x] → [lat, lng]
+    }
+  }
+  
+  // Si c'est une chaîne "x, y" ou "x,y"
+  if (typeof coordStr === 'string') {
+    const parts = coordStr.split(',').map(p => parseFloat(p.trim()));
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      // ⚠️ Attention: vos coordonnées sont en (X, Y) = (longitude, latitude)
+      // Leaflet attend [latitude, longitude]
+      return [parts[1], parts[0]];
+    }
+  }
+  
+  return null;
+}
+
+function parseGeometry(coordsArray) {
+  if (!coordsArray || !Array.isArray(coordsArray)) return null;
+  
+  const points = [];
+  for (const coord of coordsArray) {
+    const ll = parseCoord(coord);
+    if (ll) points.push(ll);
+  }
+  
+  return points;
+}
+
+// ===================================================
 // COULEURS / STYLES SNA
 // ===================================================
 const SNA_CATEGORIE_STYLE = {
@@ -116,22 +160,24 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
 
   // ─── 1. ÎLOTS ────────────────────────────────────
   ilotsGeo.forEach(ilot => {
-    if (!ilot.geom || ilot.geom.length < 3) return;
-    const poly = L.polygon(ilot.geom, {
+    const parsedGeom = parseGeometry(ilot.geom);
+    if (!parsedGeom || parsedGeom.length < 3) return;
+    const poly = L.polygon(parsedGeom, {
       color: '#9e9e9e', weight: 2, opacity: 0.7,
       fillOpacity: 0.1, fillColor: '#bdbdbd'
     });
     poly.addTo(currentIlotGroup);
     poly.bindPopup(`<b>🏷️ Îlot ${ilot.numero}</b><br>Référence : ${ilot.reference || '—'}`);
-    ilot.geom.forEach(ll => allLatLngs.push(_toLatLng(ll)));
+    parsedGeom.forEach(ll => allLatLngs.push(ll));
   });
 
   // ─── 2. PARCELLES ────────────────────────────────
   parcelsGeo.forEach(parcel => {
-    if (!parcel.geom || parcel.geom.length < 3) return;
+    const parsedGeom = parseGeometry(parcel.geom);
+    if (!parsedGeom || parsedGeom.length < 3) return;
     parcelCount++;
     const colors = getCultureColor(parcel.culture);
-    const poly = L.polygon(parcel.geom, {
+    const poly = L.polygon(parsedGeom, {
       color: colors.color, weight: 2, opacity: 0.8,
       fillOpacity: 0.4, fillColor: colors.fill
     });
@@ -142,7 +188,7 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
       Îlot : ${parcel.ilot} | Parcelle : ${parcel.parcelle}<br>
       Surface : ${surfHa.replace('.', ',')} ha
     `);
-    parcel.geom.forEach(ll => allLatLngs.push(_toLatLng(ll)));
+    parsedGeom.forEach(ll => allLatLngs.push(ll));
   });
 
   // ─── 3. MAEC ─────────────────────────────────────
@@ -156,39 +202,42 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
     const type = (maec.sousType || '').toUpperCase();
 
     if (type === 'S') {
-      if (!maec.geom || maec.geom.length < 3) return;
+      const parsedGeom = parseGeometry(maec.geom);
+      if (!parsedGeom || parsedGeom.length < 3) return;
       maecCount++;
-      const poly = L.polygon(maec.geom, {
+      const poly = L.polygon(parsedGeom, {
         color: '#2e7d32', weight: 2, opacity: 0.9,
         fillOpacity: 0.30, fillColor: '#66bb6a', dashArray: '6, 4'
       });
       poly.addTo(currentMaecSGroup);
       poly.bindPopup(_maecPopup('🟢 MAEC Surfacique', maec));
-      maec.geom.forEach(ll => allLatLngs.push(_toLatLng(ll)));
+      parsedGeom.forEach(ll => allLatLngs.push(ll));
 
     } else if (type === 'SL') {
-      if (!maec.geom || maec.geom.length < 2) return;
+      const parsedGeom = parseGeometry(maec.geom);
+      if (!parsedGeom || parsedGeom.length < 2) return;
       maecCount++;
-      const poly = L.polygon(maec.geom, {
+      const poly = L.polygon(parsedGeom, {
         color: '#e65100', weight: 3, opacity: 0.95,
         fillOpacity: 0.50, fillColor: '#ff8c00'
       });
       poly.addTo(currentMaecSLGroup);
       poly.bindPopup(_maecPopup('🟠 MAEC Linéaire (SL)', maec));
-      maec.geom.forEach(ll => allLatLngs.push(_toLatLng(ll)));
+      parsedGeom.forEach(ll => allLatLngs.push(ll));
 
     } else if (type === 'L') {
-      if (!maec.geom || maec.geom.length < 2) return;
+      const parsedGeom = parseGeometry(maec.geom);
+      if (!parsedGeom || parsedGeom.length < 2) return;
       maecCount++;
-      const line = L.polyline(maec.geom, {
+      const line = L.polyline(parsedGeom, {
         color: '#e65100', weight: 4, opacity: 0.95, dashArray: '10, 4'
       });
       line.addTo(currentMaecSLGroup);
       line.bindPopup(_maecPopup('🟠 MAEC Linéaire', maec));
-      maec.geom.forEach(ll => allLatLngs.push(_toLatLng(ll)));
+      parsedGeom.forEach(ll => allLatLngs.push(ll));
 
     } else if (type === 'P') {
-      const ll = _toLatLng(maec.geom);
+      const ll = parseCoord(maec.geom);
       if (!ll) return;
       maecCount++;
       const marker = L.circleMarker(ll, {
@@ -200,15 +249,16 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
       allLatLngs.push(ll);
 
     } else {
-      if (maec.geom && maec.geom.length >= 3) {
+      const parsedGeom = parseGeometry(maec.geom);
+      if (parsedGeom && parsedGeom.length >= 3) {
         maecCount++;
-        const poly = L.polygon(maec.geom, {
+        const poly = L.polygon(parsedGeom, {
           color: '#1e88e5', weight: 2, opacity: 0.8,
           fillOpacity: 0.25, fillColor: '#42a5f5', dashArray: '5, 5'
         });
         poly.addTo(currentMaecSGroup);
         poly.bindPopup(_maecPopup('🌿 MAEC', maec));
-        maec.geom.forEach(ll => allLatLngs.push(_toLatLng(ll)));
+        parsedGeom.forEach(ll => allLatLngs.push(ll));
       }
     }
   });
@@ -244,23 +294,32 @@ function _buildSnaLayers(snaList) {
     const style = getSnaStyle(sna);
     const popup = _snaPopup(sna);
 
-    if (sna.geom && sna.geom.length >= 3) {
-      const poly = L.polygon(sna.geom, {
-        color: style.color, weight: 2, opacity: 0.9,
-        fillOpacity: 0.40, fillColor: style.fill, dashArray: '4, 3'
-      });
-      poly.bindPopup(popup);
-      poly.addTo(snaLayerGroups[typeCode]);
-
-    } else if (sna.geomLine && sna.geomLine.length >= 2) {
-      const line = L.polyline(sna.geomLine, {
-        color: style.color, weight: 4, opacity: 0.9, dashArray: '8, 4'
-      });
-      line.bindPopup(popup);
-      line.addTo(snaLayerGroups[typeCode]);
-
-    } else if (sna.geomPoint) {
-      const ll = _toLatLng(sna.geomPoint);
+    // Géométrie surfacique
+    if (sna.geom && Array.isArray(sna.geom) && sna.geom.length >= 3) {
+      const parsedGeom = parseGeometry(sna.geom);
+      if (parsedGeom && parsedGeom.length >= 3) {
+        const poly = L.polygon(parsedGeom, {
+          color: style.color, weight: 2, opacity: 0.9,
+          fillOpacity: 0.40, fillColor: style.fill, dashArray: '4, 3'
+        });
+        poly.bindPopup(popup);
+        poly.addTo(snaLayerGroups[typeCode]);
+      }
+    }
+    // Géométrie linéaire
+    else if (sna.geomLine && Array.isArray(sna.geomLine) && sna.geomLine.length >= 2) {
+      const parsedGeom = parseGeometry(sna.geomLine);
+      if (parsedGeom && parsedGeom.length >= 2) {
+        const line = L.polyline(parsedGeom, {
+          color: style.color, weight: 4, opacity: 0.9, dashArray: '8, 4'
+        });
+        line.bindPopup(popup);
+        line.addTo(snaLayerGroups[typeCode]);
+      }
+    }
+    // Géométrie ponctuelle
+    else if (sna.geomPoint) {
+      const ll = parseCoord(sna.geomPoint);
       if (ll) {
         const marker = L.circleMarker(ll, {
           radius: 8, color: style.color, weight: 2, opacity: 0.95,
@@ -465,18 +524,46 @@ function _maecPopup(titre, maec) {
   `;
 }
 
-function _toLatLng(ll) {
-  if (!ll) return null;
-  if (typeof ll.lat === 'number') return ll;
-  if (Array.isArray(ll) && ll.length === 2) return L.latLng(ll[0], ll[1]);
+function parseCoord(coordStr) {
+  if (!coordStr) return null;
+  
+  if (typeof coordStr === 'object' && coordStr.lat !== undefined) {
+    return [coordStr.lat, coordStr.lng];
+  }
+  
+  if (Array.isArray(coordStr) && coordStr.length === 2) {
+    if (typeof coordStr[0] === 'number' && typeof coordStr[1] === 'number') {
+      return [coordStr[1], coordStr[0]];
+    }
+  }
+  
+  if (typeof coordStr === 'string') {
+    const parts = coordStr.split(',').map(p => parseFloat(p.trim()));
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      return [parts[1], parts[0]];
+    }
+  }
+  
   return null;
+}
+
+function parseGeometry(coordsArray) {
+  if (!coordsArray || !Array.isArray(coordsArray)) return null;
+  
+  const points = [];
+  for (const coord of coordsArray) {
+    const ll = parseCoord(coord);
+    if (ll) points.push(ll);
+  }
+  
+  return points.length >= 2 ? points : null;
 }
 
 function _fitBounds(allLatLngs, parcelsGeo) {
   const valid = allLatLngs.filter(Boolean);
   if (valid.length === 0) {
     const first = parcelsGeo[0]?.geom?.[0];
-    if (first) { const c = _toLatLng(first); if (c) { currentMap.setView(c, 14); return; } }
+    if (first) { const c = parseCoord(first); if (c) { currentMap.setView(c, 14); return; } }
     currentMap.setView([46.5, 2.5], 7);
     return;
   }
