@@ -32,26 +32,49 @@ export function resetMap() {
 // ===================================================
 // PARSING DES COORDONNÉES (unique)
 // ===================================================
+// Détection automatique de l'ordre des coordonnées :
+// - Format GeoJSON : [lng, lat] → le premier élément est la longitude (< 20 pour la France)
+// - Format Leaflet : [lat, lng] → le premier élément est la latitude (> 40 pour la France)
+function _isGeoJsonOrder(a, b) {
+  // En France : lat ∈ [41, 51], lng ∈ [-5, 10]
+  // Si a ∈ [-180, 20] et b ∈ [40, 60] → ordre GeoJSON [lng, lat]
+  const aIsLng = Math.abs(a) <= 20;
+  const bIsLat = b >= 40 && b <= 55;
+  return aIsLng && bIsLat;
+}
+
 function _parseCoord(coordStr) {
   if (!coordStr) return null;
-  
-  if (typeof coordStr === 'object' && coordStr.lat !== undefined) {
+
+  // Objet {lat, lng} → ordre déjà correct pour Leaflet
+  if (typeof coordStr === 'object' && !Array.isArray(coordStr) && coordStr.lat !== undefined) {
     return [coordStr.lat, coordStr.lng];
   }
-  
+
+  // Tableau numérique [a, b]
   if (Array.isArray(coordStr) && coordStr.length === 2) {
-    if (typeof coordStr[0] === 'number' && typeof coordStr[1] === 'number') {
-      return [coordStr[1], coordStr[0]];
+    const [a, b] = coordStr;
+    if (typeof a === 'number' && typeof b === 'number') {
+      // Détection automatique : GeoJSON [lng, lat] ou Leaflet [lat, lng]
+      if (_isGeoJsonOrder(a, b)) {
+        return [b, a]; // GeoJSON → on inverse pour Leaflet
+      }
+      return [a, b]; // Déjà en [lat, lng]
     }
   }
-  
+
+  // Chaîne "a, b"
   if (typeof coordStr === 'string') {
     const parts = coordStr.split(',').map(p => parseFloat(p.trim()));
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-      return [parts[1], parts[0]];
+      const [a, b] = parts;
+      if (_isGeoJsonOrder(a, b)) {
+        return [b, a]; // GeoJSON → on inverse pour Leaflet
+      }
+      return [a, b]; // Déjà en [lat, lng]
     }
   }
-  
+
   return null;
 }
 
