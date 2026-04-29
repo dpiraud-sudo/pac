@@ -1,4 +1,4 @@
-// js/carto.js - Version avec gestion des polygones complexes
+// js/carto.js - Version avec gestion des polygones complexes pour îlots ET parcelles
 import { getCultureColor } from './data.js';
 
 let currentMap = null;
@@ -84,6 +84,64 @@ function parseCoord(coordStr) {
   return null;
 }
 
+// Fonction générique pour parser une géométrie quelconque
+function parseGeometry(geom, minPoints = 3) {
+  if (!geom || !Array.isArray(geom)) return null;
+  
+  const firstElement = geom[0];
+  const result = [];
+  
+  // Cas 1: Polygone simple (tableau de points)
+  if (Array.isArray(firstElement) && firstElement.length === 2 && typeof firstElement[0] === 'number') {
+    const points = [];
+    for (const coord of geom) {
+      const ll = parseCoord(coord);
+      if (ll) points.push(ll);
+    }
+    if (points.length >= minPoints) {
+      result.push([points]);
+    }
+  }
+  // Cas 2: Polygone avec trou(s) (tableau d'anneaux)
+  else if (Array.isArray(firstElement) && Array.isArray(firstElement[0]) && typeof firstElement[0][0] === 'number') {
+    const rings = [];
+    for (const ring of geom) {
+      const points = [];
+      for (const coord of ring) {
+        const ll = parseCoord(coord);
+        if (ll) points.push(ll);
+      }
+      if (points.length >= 3) {
+        rings.push(points);
+      }
+    }
+    if (rings.length >= 1) {
+      result.push(rings);
+    }
+  }
+  // Cas 3: Multi-polygone
+  else if (Array.isArray(firstElement) && Array.isArray(firstElement[0]) && Array.isArray(firstElement[0][0])) {
+    for (const poly of geom) {
+      const rings = [];
+      for (const ring of poly) {
+        const points = [];
+        for (const coord of ring) {
+          const ll = parseCoord(coord);
+          if (ll) points.push(ll);
+        }
+        if (points.length >= 3) {
+          rings.push(points);
+        }
+      }
+      if (rings.length >= 1) {
+        result.push(rings);
+      }
+    }
+  }
+  
+  return result.length > 0 ? result : null;
+}
+
 // ===================================================
 // STYLES SNA
 // ===================================================
@@ -157,65 +215,13 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
   let parcelCount = 0;
   let maecCount = 0;
 
-  // ========== 1. ÎLOTS - Gestion polygones complexes ==========
+  // ========== 1. ÎLOTS ==========
   console.log('Nombre d\'îlots reçus:', ilotsGeo.length);
 
   ilotsGeo.forEach(ilot => {
-    let polygonsToAdd = [];
+    const polygonsToAdd = parseGeometry(ilot.geom, 3);
     
-    if (ilot.geom && Array.isArray(ilot.geom)) {
-      const firstElement = ilot.geom[0];
-      
-      // Cas 1: Polygone simple
-      if (Array.isArray(firstElement) && firstElement.length === 2 && typeof firstElement[0] === 'number') {
-        const points = [];
-        for (const coord of ilot.geom) {
-          const ll = parseCoord(coord);
-          if (ll) points.push(ll);
-        }
-        if (points.length >= 3) {
-          polygonsToAdd.push([points]);
-        }
-      }
-      // Cas 2: Polygone avec trou(s)
-      else if (Array.isArray(firstElement) && Array.isArray(firstElement[0]) && typeof firstElement[0][0] === 'number') {
-        const rings = [];
-        for (const ring of ilot.geom) {
-          const points = [];
-          for (const coord of ring) {
-            const ll = parseCoord(coord);
-            if (ll) points.push(ll);
-          }
-          if (points.length >= 3) {
-            rings.push(points);
-          }
-        }
-        if (rings.length >= 1) {
-          polygonsToAdd.push(rings);
-        }
-      }
-      // Cas 3: Multi-polygone
-      else if (Array.isArray(firstElement) && Array.isArray(firstElement[0]) && Array.isArray(firstElement[0][0])) {
-        for (const poly of ilot.geom) {
-          const rings = [];
-          for (const ring of poly) {
-            const points = [];
-            for (const coord of ring) {
-              const ll = parseCoord(coord);
-              if (ll) points.push(ll);
-            }
-            if (points.length >= 3) {
-              rings.push(points);
-            }
-          }
-          if (rings.length >= 1) {
-            polygonsToAdd.push(rings);
-          }
-        }
-      }
-    }
-    
-    if (polygonsToAdd.length > 0) {
+    if (polygonsToAdd && polygonsToAdd.length > 0) {
       for (const rings of polygonsToAdd) {
         const poly = L.polygon(rings, {
           color: '#9e9e9e', weight: 2, opacity: 0.7,
@@ -234,44 +240,36 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
   });
 
   // ========== 2. PARCELLES ==========
+  console.log('Nombre de parcelles reçues:', parcelsGeo.length);
+
   parcelsGeo.forEach(parcel => {
-    let points = [];
+    const polygonsToAdd = parseGeometry(parcel.geom, 3);
     
-    if (parcel.geom && Array.isArray(parcel.geom)) {
-      // Gérer les différents formats
-      const firstElement = parcel.geom[0];
-      
-      if (Array.isArray(firstElement) && firstElement.length === 2 && typeof firstElement[0] === 'number') {
-        // Polygone simple
-        for (const coord of parcel.geom) {
-          const ll = parseCoord(coord);
-          if (ll) points.push(ll);
-        }
-      } else if (Array.isArray(firstElement) && Array.isArray(firstElement[0])) {
-        // Polygone avec trous - prendre l'anneau extérieur
-        const outerRing = parcel.geom[0];
-        for (const coord of outerRing) {
-          const ll = parseCoord(coord);
-          if (ll) points.push(ll);
-        }
-      }
-    }
-    
-    if (points.length >= 3) {
+    if (polygonsToAdd && polygonsToAdd.length > 0) {
       parcelCount++;
       const colors = getCultureColor(parcel.culture);
-      const poly = L.polygon(points, {
-        color: colors.color, weight: 2, opacity: 0.8,
-        fillOpacity: 0.5, fillColor: colors.fill
-      });
-      poly.addTo(currentParcelGroup);
-      const surfHa = parcel.surface ? (parseFloat(parcel.surface) / 100).toFixed(2) : '?';
-      poly.bindPopup(`
-        <b>🌾 ${parcel.culture}</b><br>
-        Îlot : ${parcel.ilot} | Parcelle : ${parcel.parcelle}<br>
-        Surface : ${surfHa.replace('.', ',')} ha
-      `);
-      points.forEach(ll => allLatLngs.push(ll));
+      
+      for (const rings of polygonsToAdd) {
+        const poly = L.polygon(rings, {
+          color: colors.color, weight: 2, opacity: 0.8,
+          fillOpacity: 0.5, fillColor: colors.fill
+        });
+        poly.addTo(currentParcelGroup);
+        
+        const surfHa = parcel.surface ? (parseFloat(parcel.surface) / 100).toFixed(2) : '?';
+        poly.bindPopup(`
+          <b>🌾 ${parcel.culture}</b><br>
+          Îlot : ${parcel.ilot} | Parcelle : ${parcel.parcelle}<br>
+          Surface : ${surfHa.replace('.', ',')} ha
+        `);
+        
+        for (const ring of rings) {
+          ring.forEach(ll => allLatLngs.push(ll));
+        }
+      }
+      console.log(`Parcelle ${parcel.ilot}-${parcel.parcelle} ajoutée avec ${polygonsToAdd.length} polygone(s)`);
+    } else {
+      console.warn(`Parcelle ${parcel.ilot}-${parcel.parcelle} ignorée - géométrie invalide:`, parcel.geom);
     }
   });
 
@@ -284,35 +282,44 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
 
   allMaec.forEach(maec => {
     const type = (maec.sousType || '').toUpperCase();
-    let points = [];
     
-    if (maec.geom && Array.isArray(maec.geom)) {
-      for (const coord of maec.geom) {
-        const ll = parseCoord(coord);
-        if (ll) points.push(ll);
+    if (type === 'S') {
+      const polygonsToAdd = parseGeometry(maec.geom, 3);
+      if (polygonsToAdd && polygonsToAdd.length > 0) {
+        maecCount++;
+        for (const rings of polygonsToAdd) {
+          const poly = L.polygon(rings, {
+            color: '#1e88e5', weight: 2, opacity: 0.8,
+            fillOpacity: 0.3, fillColor: '#42a5f5'
+          });
+          poly.addTo(currentMaecSGroup);
+          poly.bindPopup(maecPopup('🌿 MAEC Surfacique', maec));
+          for (const ring of rings) {
+            ring.forEach(ll => allLatLngs.push(ll));
+          }
+        }
       }
-    }
-
-    if (type === 'S' && points.length >= 3) {
-      maecCount++;
-      const poly = L.polygon(points, {
-        color: '#1e88e5', weight: 2, opacity: 0.8,
-        fillOpacity: 0.3, fillColor: '#42a5f5'
-      });
-      poly.addTo(currentMaecSGroup);
-      poly.bindPopup(maecPopup('🌿 MAEC Surfacique', maec));
-      points.forEach(ll => allLatLngs.push(ll));
-
-    } else if (type === 'L' && points.length >= 2) {
-      maecCount++;
-      const line = L.polyline(points, {
-        color: '#ff8c00', weight: 3, opacity: 0.9
-      });
-      line.addTo(currentMaecSLGroup);
-      line.bindPopup(maecPopup('📏 MAEC Linéaire', maec));
-      points.forEach(ll => allLatLngs.push(ll));
-
-    } else if (type === 'P') {
+    } 
+    else if (type === 'L') {
+      // Pour les linéaires, on prend juste les points
+      let points = [];
+      if (maec.geom && Array.isArray(maec.geom)) {
+        for (const coord of maec.geom) {
+          const ll = parseCoord(coord);
+          if (ll) points.push(ll);
+        }
+      }
+      if (points.length >= 2) {
+        maecCount++;
+        const line = L.polyline(points, {
+          color: '#ff8c00', weight: 3, opacity: 0.9
+        });
+        line.addTo(currentMaecSLGroup);
+        line.bindPopup(maecPopup('📏 MAEC Linéaire', maec));
+        points.forEach(ll => allLatLngs.push(ll));
+      }
+    } 
+    else if (type === 'P') {
       const ll = parseCoord(maec.geom);
       if (ll) {
         maecCount++;
@@ -349,21 +356,21 @@ function buildSnaLayers(snaList) {
     const style = getSnaStyle(sna);
     const popup = snaPopup(sna);
 
+    // Polygone
     if (sna.geom && Array.isArray(sna.geom)) {
-      const points = [];
-      for (const coord of sna.geom) {
-        const ll = parseCoord(coord);
-        if (ll) points.push(ll);
-      }
-      if (points.length >= 3) {
-        const poly = L.polygon(points, {
-          color: style.color, weight: 2, opacity: 0.9,
-          fillOpacity: 0.40, fillColor: style.fill, dashArray: '4, 3'
-        });
-        poly.bindPopup(popup);
-        poly.addTo(snaLayerGroups[typeCode]);
+      const polygonsToAdd = parseGeometry(sna.geom, 3);
+      if (polygonsToAdd && polygonsToAdd.length > 0) {
+        for (const rings of polygonsToAdd) {
+          const poly = L.polygon(rings, {
+            color: style.color, weight: 2, opacity: 0.9,
+            fillOpacity: 0.40, fillColor: style.fill, dashArray: '4, 3'
+          });
+          poly.bindPopup(popup);
+          poly.addTo(snaLayerGroups[typeCode]);
+        }
       }
     }
+    // Ligne
     else if (sna.geomLine && Array.isArray(sna.geomLine)) {
       const points = [];
       for (const coord of sna.geomLine) {
@@ -378,6 +385,7 @@ function buildSnaLayers(snaList) {
         line.addTo(snaLayerGroups[typeCode]);
       }
     }
+    // Point
     else if (sna.geomPoint) {
       const ll = parseCoord(sna.geomPoint);
       if (ll) {
