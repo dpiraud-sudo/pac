@@ -1,4 +1,4 @@
-// js/carto.js
+// js/carto.js - Version corrigée (sans doublons)
 import { getCultureColor } from './data.js';
 
 let currentMap = null;
@@ -30,9 +30,9 @@ export function resetMap() {
 }
 
 // ===================================================
-// PARSING DES COORDONNÉES (chaîne "x, y" → [lat, lng])
+// PARSING DES COORDONNÉES (unique)
 // ===================================================
-function parseCoord(coordStr) {
+function _parseCoord(coordStr) {
   if (!coordStr) return null;
   
   // Si c'est déjà un objet avec lat/lng
@@ -42,9 +42,8 @@ function parseCoord(coordStr) {
   
   // Si c'est un tableau [x, y]
   if (Array.isArray(coordStr) && coordStr.length === 2) {
-    // Vérifier si ce sont des nombres
     if (typeof coordStr[0] === 'number' && typeof coordStr[1] === 'number') {
-      return [coordStr[1], coordStr[0]]; // [y, x] → [lat, lng]
+      return [coordStr[1], coordStr[0]];
     }
   }
   
@@ -52,8 +51,6 @@ function parseCoord(coordStr) {
   if (typeof coordStr === 'string') {
     const parts = coordStr.split(',').map(p => parseFloat(p.trim()));
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-      // ⚠️ Attention: vos coordonnées sont en (X, Y) = (longitude, latitude)
-      // Leaflet attend [latitude, longitude]
       return [parts[1], parts[0]];
     }
   }
@@ -61,16 +58,16 @@ function parseCoord(coordStr) {
   return null;
 }
 
-function parseGeometry(coordsArray) {
+function _parseGeometry(coordsArray) {
   if (!coordsArray || !Array.isArray(coordsArray)) return null;
   
   const points = [];
   for (const coord of coordsArray) {
-    const ll = parseCoord(coord);
+    const ll = _parseCoord(coord);
     if (ll) points.push(ll);
   }
   
-  return points;
+  return points.length >= 2 ? points : null;
 }
 
 // ===================================================
@@ -103,7 +100,7 @@ const SNA_TYPE_LABELS = {
   V8: 'Végétation non agricole non caractérisée'
 };
 
-function getCatFromType(typeCode) {
+function _getCatFromType(typeCode) {
   if (!typeCode) return 'AT';
   const c = typeCode[0];
   if (c === 'B') return 'EA';
@@ -111,8 +108,8 @@ function getCatFromType(typeCode) {
   return 'AT';
 }
 
-function getSnaStyle(sna) {
-  const cat = sna.categorieSna || getCatFromType(sna.typeSna);
+function _getSnaStyle(sna) {
+  const cat = sna.categorieSna || _getCatFromType(sna.typeSna);
   return SNA_CATEGORIE_STYLE[cat] || SNA_CATEGORIE_STYLE.AT;
 }
 
@@ -160,7 +157,7 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
 
   // ─── 1. ÎLOTS ────────────────────────────────────
   ilotsGeo.forEach(ilot => {
-    const parsedGeom = parseGeometry(ilot.geom);
+    const parsedGeom = _parseGeometry(ilot.geom);
     if (!parsedGeom || parsedGeom.length < 3) return;
     const poly = L.polygon(parsedGeom, {
       color: '#9e9e9e', weight: 2, opacity: 0.7,
@@ -173,7 +170,7 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
 
   // ─── 2. PARCELLES ────────────────────────────────
   parcelsGeo.forEach(parcel => {
-    const parsedGeom = parseGeometry(parcel.geom);
+    const parsedGeom = _parseGeometry(parcel.geom);
     if (!parsedGeom || parsedGeom.length < 3) return;
     parcelCount++;
     const colors = getCultureColor(parcel.culture);
@@ -193,16 +190,16 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
 
   // ─── 3. MAEC ─────────────────────────────────────
   const allMaec = [
-    ...maecGeo.surfaciques,
-    ...maecGeo.lineaires,
-    ...maecGeo.ponctuelles
+    ...(maecGeo.surfaciques || []),
+    ...(maecGeo.lineaires || []),
+    ...(maecGeo.ponctuelles || [])
   ];
 
   allMaec.forEach(maec => {
     const type = (maec.sousType || '').toUpperCase();
 
     if (type === 'S') {
-      const parsedGeom = parseGeometry(maec.geom);
+      const parsedGeom = _parseGeometry(maec.geom);
       if (!parsedGeom || parsedGeom.length < 3) return;
       maecCount++;
       const poly = L.polygon(parsedGeom, {
@@ -214,7 +211,7 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
       parsedGeom.forEach(ll => allLatLngs.push(ll));
 
     } else if (type === 'SL') {
-      const parsedGeom = parseGeometry(maec.geom);
+      const parsedGeom = _parseGeometry(maec.geom);
       if (!parsedGeom || parsedGeom.length < 2) return;
       maecCount++;
       const poly = L.polygon(parsedGeom, {
@@ -226,7 +223,7 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
       parsedGeom.forEach(ll => allLatLngs.push(ll));
 
     } else if (type === 'L') {
-      const parsedGeom = parseGeometry(maec.geom);
+      const parsedGeom = _parseGeometry(maec.geom);
       if (!parsedGeom || parsedGeom.length < 2) return;
       maecCount++;
       const line = L.polyline(parsedGeom, {
@@ -237,7 +234,7 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
       parsedGeom.forEach(ll => allLatLngs.push(ll));
 
     } else if (type === 'P') {
-      const ll = parseCoord(maec.geom);
+      const ll = _parseCoord(maec.geom);
       if (!ll) return;
       maecCount++;
       const marker = L.circleMarker(ll, {
@@ -249,7 +246,7 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
       allLatLngs.push(ll);
 
     } else {
-      const parsedGeom = parseGeometry(maec.geom);
+      const parsedGeom = _parseGeometry(maec.geom);
       if (parsedGeom && parsedGeom.length >= 3) {
         maecCount++;
         const poly = L.polygon(parsedGeom, {
@@ -291,12 +288,12 @@ function _buildSnaLayers(snaList) {
       snaLayerGroups[typeCode] = L.layerGroup().addTo(currentMap);
     }
 
-    const style = getSnaStyle(sna);
+    const style = _getSnaStyle(sna);
     const popup = _snaPopup(sna);
 
     // Géométrie surfacique
     if (sna.geom && Array.isArray(sna.geom) && sna.geom.length >= 3) {
-      const parsedGeom = parseGeometry(sna.geom);
+      const parsedGeom = _parseGeometry(sna.geom);
       if (parsedGeom && parsedGeom.length >= 3) {
         const poly = L.polygon(parsedGeom, {
           color: style.color, weight: 2, opacity: 0.9,
@@ -308,7 +305,7 @@ function _buildSnaLayers(snaList) {
     }
     // Géométrie linéaire
     else if (sna.geomLine && Array.isArray(sna.geomLine) && sna.geomLine.length >= 2) {
-      const parsedGeom = parseGeometry(sna.geomLine);
+      const parsedGeom = _parseGeometry(sna.geomLine);
       if (parsedGeom && parsedGeom.length >= 2) {
         const line = L.polyline(parsedGeom, {
           color: style.color, weight: 4, opacity: 0.9, dashArray: '8, 4'
@@ -319,7 +316,7 @@ function _buildSnaLayers(snaList) {
     }
     // Géométrie ponctuelle
     else if (sna.geomPoint) {
-      const ll = parseCoord(sna.geomPoint);
+      const ll = _parseCoord(sna.geomPoint);
       if (ll) {
         const marker = L.circleMarker(ll, {
           radius: 8, color: style.color, weight: 2, opacity: 0.95,
@@ -336,7 +333,7 @@ function _buildSnaLayers(snaList) {
 // SNA — POPUP
 // ===================================================
 function _snaPopup(sna) {
-  const cat     = sna.categorieSna || getCatFromType(sna.typeSna) || '—';
+  const cat     = sna.categorieSna || _getCatFromType(sna.typeSna) || '—';
   const style   = SNA_CATEGORIE_STYLE[cat] || SNA_CATEGORIE_STYLE.AT;
   const typeLib = SNA_TYPE_LABELS[sna.typeSna] || sna.typeSna || '—';
   const surfHa  = sna.surfaceGraphique ? sna.surfaceGraphique.toFixed(4).replace('.', ',') : '—';
@@ -378,7 +375,7 @@ function _buildSnaFilterUI(snaList) {
   // Regrouper par catégorie > type
   const byCategorie = {};
   for (const sna of snaList) {
-    const cat  = sna.categorieSna || getCatFromType(sna.typeSna) || 'AT';
+    const cat  = sna.categorieSna || _getCatFromType(sna.typeSna) || 'AT';
     const type = sna.typeSna || 'XX';
     if (!byCategorie[cat]) byCategorie[cat] = {};
     byCategorie[cat][type] = (byCategorie[cat][type] || 0) + 1;
@@ -524,46 +521,11 @@ function _maecPopup(titre, maec) {
   `;
 }
 
-function parseCoord(coordStr) {
-  if (!coordStr) return null;
-  
-  if (typeof coordStr === 'object' && coordStr.lat !== undefined) {
-    return [coordStr.lat, coordStr.lng];
-  }
-  
-  if (Array.isArray(coordStr) && coordStr.length === 2) {
-    if (typeof coordStr[0] === 'number' && typeof coordStr[1] === 'number') {
-      return [coordStr[1], coordStr[0]];
-    }
-  }
-  
-  if (typeof coordStr === 'string') {
-    const parts = coordStr.split(',').map(p => parseFloat(p.trim()));
-    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-      return [parts[1], parts[0]];
-    }
-  }
-  
-  return null;
-}
-
-function parseGeometry(coordsArray) {
-  if (!coordsArray || !Array.isArray(coordsArray)) return null;
-  
-  const points = [];
-  for (const coord of coordsArray) {
-    const ll = parseCoord(coord);
-    if (ll) points.push(ll);
-  }
-  
-  return points.length >= 2 ? points : null;
-}
-
 function _fitBounds(allLatLngs, parcelsGeo) {
   const valid = allLatLngs.filter(Boolean);
   if (valid.length === 0) {
     const first = parcelsGeo[0]?.geom?.[0];
-    if (first) { const c = parseCoord(first); if (c) { currentMap.setView(c, 14); return; } }
+    if (first) { const c = _parseCoord(first); if (c) { currentMap.setView(c, 14); return; } }
     currentMap.setView([46.5, 2.5], 7);
     return;
   }
@@ -618,7 +580,7 @@ function _updateLegend(parcelsGeo, ilotsGeo, maecGeo, maecCount, snaList) {
 
   // MAEC
   if (maecCount > 0) {
-    const allMaec = [...maecGeo.surfaciques, ...maecGeo.lineaires, ...maecGeo.ponctuelles];
+    const allMaec = [...(maecGeo.surfaciques || []), ...(maecGeo.lineaires || []), ...(maecGeo.ponctuelles || [])];
     const countS  = allMaec.filter(m => (m.sousType || '').toUpperCase() === 'S').length;
     const countSL = allMaec.filter(m => (m.sousType || '').toUpperCase() === 'SL').length;
     const countL  = allMaec.filter(m => (m.sousType || '').toUpperCase() === 'L').length;
@@ -636,7 +598,7 @@ function _updateLegend(parcelsGeo, ilotsGeo, maecGeo, maecCount, snaList) {
   if (snaList.length) {
     const catCounts = {};
     snaList.forEach(s => {
-      const cat = s.categorieSna || getCatFromType(s.typeSna) || 'AT';
+      const cat = s.categorieSna || _getCatFromType(s.typeSna) || 'AT';
       catCounts[cat] = (catCounts[cat] || 0) + 1;
     });
     html += `<div style="margin-bottom:4px"><strong>🏗️ SNA</strong></div>
@@ -695,11 +657,9 @@ function _setupLayerControls() {
     toggleSNA.onclick = () => {
       const container = document.getElementById('sna-map-filters');
       if (toggleSNA.checked) {
-        // Remettre l'état antérieur des filtres fins
         if (container) _applySnaFilter(container);
         else Object.values(snaLayerGroups).forEach(g => g.addTo(currentMap));
       } else {
-        // Tout masquer sans toucher aux checkboxes fines
         Object.values(snaLayerGroups).forEach(g => {
           if (currentMap.hasLayer(g)) g.remove();
         });
