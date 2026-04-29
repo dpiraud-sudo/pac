@@ -1,4 +1,4 @@
-// js/carto.js - Version complète et corrigée
+// js/carto.js - Version corrigée avec parsing GML robuste
 import { getCultureColor } from './data.js';
 
 let currentMap = null;
@@ -8,12 +8,12 @@ let currentMaecSGroup   = null;
 let currentMaecSLGroup  = null;
 let currentMaecPGroup   = null;
 
-// ── Couches SNA par type ──────────────────────────────
+// Couches SNA par type
 let snaLayerGroups = {};
 let snaData        = [];
 
 // ===================================================
-// RESET (exportée)
+// RESET
 // ===================================================
 export function resetMap() {
   if (currentMap) {
@@ -31,7 +31,6 @@ export function resetMap() {
 
 // ===================================================
 // PROJECTION Lambert-93 (EPSG:2154) → WGS84
-// proj4.js est chargé dans index.html avant ce module
 // ===================================================
 if (typeof proj4 !== 'undefined') {
   proj4.defs(
@@ -42,122 +41,102 @@ if (typeof proj4 !== 'undefined') {
   );
 }
 
-/**
- * Convertit une paire Lambert-93 (X, Y) en [lat, lng] WGS84 via proj4.
- * Identique à convertToLatLng() du fichier de référence carto_pac_2026.html.
- */
-function _lambert93ToLatLng(x, y) {
+function convertToLatLng(x, y) {
   if (typeof proj4 === 'undefined') {
-    console.warn('proj4.js non disponible — coordonnées non converties');
-    return [y, x]; // fallback brut
+    console.warn('proj4.js non disponible');
+    return [parseFloat(y), parseFloat(x)];
   }
-  const [lon, lat] = proj4('EPSG:2154', 'EPSG:4326', [x, y]);
+  const [lon, lat] = proj4('EPSG:2154', 'EPSG:4326', [parseFloat(x), parseFloat(y)]);
   return [lat, lon];
 }
 
-/**
- * Détecte si une valeur numérique est en Lambert-93 métrique.
- * En Lambert-93 : X ∈ [100 000 ; 1 300 000], Y ∈ [6 000 000 ; 7 200 000]
- */
-function _isLambert93(a, b) {
-  return (a > 100000 && a < 1300000 && b > 6000000 && b < 7200000);
-}
-
 // ===================================================
-// PARSING GML (identique au fichier de référence)
+// PARSING GML - Version identique au HTML de référence
 // ===================================================
 
-/**
- * Parse un bloc <gml:Polygon> complet (avec trous éventuels)
- * et retourne un tableau compatible L.polygon([outerRing, ...holes]).
- */
 export function parseGmlPolygon(gmlString) {
   const coordRegex = /<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/g;
   const matches = [...gmlString.matchAll(coordRegex)];
   if (matches.length === 0) return null;
-
-  function parseRing(rawText) {
-    const ring = [];
-    for (const pair of rawText.trim().split(/\s+/)) {
-      if (!pair) continue;
-      const [x, y] = pair.split(',').map(Number);
-      if (!isNaN(x) && !isNaN(y)) ring.push(_lambert93ToLatLng(x, y));
-    }
-    return ring;
+  
+  const outerCoords = matches[0][1].trim().split(/\s+/);
+  const outerRing = [];
+  for (let pair of outerCoords) {
+    if (pair === "") continue;
+    const [x, y] = pair.split(',').map(Number);
+    if (!isNaN(x) && !isNaN(y)) outerRing.push(convertToLatLng(x, y));
   }
-
-  const outerRing = parseRing(matches[0][1]);
   if (outerRing.length < 3) return null;
-
+  
   const holes = [];
   for (let i = 1; i < matches.length; i++) {
-    const hole = parseRing(matches[i][1]);
-    if (hole.length >= 3) holes.push(hole);
+    const holeCoords = matches[i][1].trim().split(/\s+/);
+    const holeRing = [];
+    for (let pair of holeCoords) {
+      if (pair === "") continue;
+      const [x, y] = pair.split(',').map(Number);
+      if (!isNaN(x) && !isNaN(y)) holeRing.push(convertToLatLng(x, y));
+    }
+    if (holeRing.length >= 3) holes.push(holeRing);
   }
-
+  
   return holes.length > 0 ? [outerRing, ...holes] : outerRing;
 }
 
-/**
- * Parse un bloc <gml:LineString> et retourne un tableau de [lat, lng].
- */
 export function parseGmlLineString(gmlString) {
-  const match = gmlString.match(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/);
+  const coordRegex = /<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/;
+  const match = gmlString.match(coordRegex);
   if (!match) return null;
+  const coords = match[1].trim().split(/\s+/);
   const points = [];
-  for (const pair of match[1].trim().split(/\s+/)) {
-    if (!pair) continue;
+  for (let pair of coords) {
+    if (pair === "") continue;
     const [x, y] = pair.split(',').map(Number);
-    if (!isNaN(x) && !isNaN(y)) points.push(_lambert93ToLatLng(x, y));
+    if (!isNaN(x) && !isNaN(y)) points.push(convertToLatLng(x, y));
   }
   return points.length >= 2 ? points : null;
 }
 
-/**
- * Parse un bloc <gml:Point> et retourne [lat, lng].
- */
 export function parseGmlPoint(gmlString) {
-  const match = gmlString.match(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/);
+  const coordRegex = /<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/;
+  const match = gmlString.match(coordRegex);
   if (!match) return null;
   const [x, y] = match[1].trim().split(',').map(Number);
   if (isNaN(x) || isNaN(y)) return null;
-  return _lambert93ToLatLng(x, y);
+  return convertToLatLng(x, y);
 }
 
 // ===================================================
-// PARSING DES COORDONNÉES — format tableau (legacy)
-// Utilisé quand les données sont déjà extraites en JS
+// PARSING DES COORDONNÉES DEPUIS L'OBJET GEOJSON
 // ===================================================
 
-/**
- * Convertit n'importe quelle représentation d'un point en [lat, lng] Leaflet.
- * Gère : {lat,lng}, [X,Y] Lambert-93, [lng,lat] GeoJSON, [lat,lng] natif, "x,y" string.
- */
-function _parseCoord(coordStr) {
+function parseCoord(coordStr) {
   if (!coordStr) return null;
 
-  // Objet {lat, lng} → déjà en WGS84 Leaflet
   if (typeof coordStr === 'object' && !Array.isArray(coordStr) && coordStr.lat !== undefined) {
     return [coordStr.lat, coordStr.lng];
   }
 
-  // Tableau numérique [a, b]
   if (Array.isArray(coordStr) && coordStr.length === 2) {
     const [a, b] = coordStr;
     if (typeof a === 'number' && typeof b === 'number') {
-      if (_isLambert93(a, b)) return _lambert93ToLatLng(a, b);
-      // GeoJSON [lng, lat] : lng ∈ [-20, 20], lat ∈ [40, 55] pour la France
+      // Détection Lambert-93
+      if (a > 100000 && a < 1300000 && b > 6000000 && b < 7200000) {
+        return convertToLatLng(a, b);
+      }
+      // GeoJSON [lng, lat]
       if (Math.abs(a) <= 20 && b >= 40 && b <= 55) return [b, a];
-      return [a, b]; // déjà [lat, lng]
+      return [a, b];
     }
   }
 
-  // Chaîne "a,b"
   if (typeof coordStr === 'string') {
     const parts = coordStr.split(',').map(p => parseFloat(p.trim()));
     if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
       const [a, b] = parts;
-      if (_isLambert93(a, b)) return _lambert93ToLatLng(a, b);
+      if (a > 100000 && a < 1300000 && b > 6000000 && b < 7200000) {
+        return convertToLatLng(a, b);
+      }
       if (Math.abs(a) <= 20 && b >= 40 && b <= 55) return [b, a];
       return [a, b];
     }
@@ -166,47 +145,25 @@ function _parseCoord(coordStr) {
   return null;
 }
 
-function _parseGeometry(coordsArray) {
-  if (!coordsArray || !Array.isArray(coordsArray)) return null;
-  const points = [];
-  for (const coord of coordsArray) {
-    const ll = _parseCoord(coord);
-    if (ll) points.push(ll);
-  }
-  return points.length >= 2 ? points : null;
-}
-
 // ===================================================
-// COULEURS / STYLES SNA
+// STYLES SNA
 // ===================================================
 const SNA_CATEGORIE_STYLE = {
   EA: { color: '#0277bd', fill: '#b3e5fc', label: '🏗️ Espace artificialisé' },
-  AT: { color: '#bf360c', fill: '#ffccbc', label: '🌲 Autre terre'          },
-  VG: { color: '#2e7d32', fill: '#c8e6c9', label: '🌳 Végétation'           }
+  AT: { color: '#bf360c', fill: '#ffccbc', label: '🌲 Autre terre' },
+  VG: { color: '#2e7d32', fill: '#c8e6c9', label: '🌳 Végétation' }
 };
 
 const SNA_TYPE_LABELS = {
-  B1: 'Bâtiment',
-  B2: 'Route, chemin ou voie ferrée',
-  B3: 'Surface aménagée',
-  A1: 'Mare',
-  A2: 'Surface en eau non maçonnée (hors mare)',
-  A3: 'Surface en eau maçonnée',
-  A4: 'Fossé non maçonné',
-  A5: 'Fossé maçonné',
-  A6: 'Affleurement rocheux',
-  A7: 'Mur traditionnel en pierre (IAE)',
-  V1: 'Arbre isolé',
-  V2: 'Arbres alignés',
-  V3: 'Bosquet',
-  V4: 'Haie',
-  V5: 'Forêt',
-  V6: 'Broussailles',
-  V7: 'Autre surface végétale non agricole',
-  V8: 'Végétation non agricole non caractérisée'
+  B1: 'Bâtiment', B2: 'Route, chemin ou voie ferrée', B3: 'Surface aménagée',
+  A1: 'Mare', A2: 'Surface en eau non maçonnée', A3: 'Surface en eau maçonnée',
+  A4: 'Fossé non maçonné', A5: 'Fossé maçonné', A6: 'Affleurement rocheux',
+  A7: 'Mur traditionnel en pierre',
+  V1: 'Arbre isolé', V2: 'Arbres alignés', V3: 'Bosquet', V4: 'Haie',
+  V5: 'Forêt', V6: 'Broussailles', V7: 'Autre surface végétale', V8: 'Végétation non caractérisée'
 };
 
-function _getCatFromType(typeCode) {
+function getCatFromType(typeCode) {
   if (!typeCode) return 'AT';
   const c = typeCode[0];
   if (c === 'B') return 'EA';
@@ -214,20 +171,19 @@ function _getCatFromType(typeCode) {
   return 'AT';
 }
 
-function _getSnaStyle(sna) {
-  const cat = sna.categorieSna || _getCatFromType(sna.typeSna);
+function getSnaStyle(sna) {
+  const cat = sna.categorieSna || getCatFromType(sna.typeSna);
   return SNA_CATEGORIE_STYLE[cat] || SNA_CATEGORIE_STYLE.AT;
 }
 
 // ===================================================
-// INIT MAP (exportée)
+// INIT MAP
 // ===================================================
 export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
   resetMap();
   snaData = snaList;
 
-  // Centrage sur la France métropolitaine
-  currentMap = L.map('map').setView([46.5, 2.5], 7);
+  currentMap = L.map('map').setView([48.25, -0.93], 12);
 
   var cartoDB = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> & CartoDB',
@@ -260,42 +216,69 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
 
   let allLatLngs = [];
   let parcelCount = 0;
-  let maecCount   = 0;
+  let maecCount = 0;
 
-  // ─── 1. ÎLOTS ────────────────────────────────────
+  // ========== 1. ÎLOTS - Utilisation directe de la géométrie ==========
+  console.log('Nombre d\'îlots reçus:', ilotsGeo.length);
+  
   ilotsGeo.forEach(ilot => {
-    const parsedGeom = _parseGeometry(ilot.geom);
-    if (!parsedGeom || parsedGeom.length < 3) return;
-    const poly = L.polygon(parsedGeom, {
-      color: '#9e9e9e', weight: 2, opacity: 0.7,
-      fillOpacity: 0.1, fillColor: '#bdbdbd'
-    });
-    poly.addTo(currentIlotGroup);
-    poly.bindPopup(`<b>🏷️ Îlot ${ilot.numero}</b><br>Référence : ${ilot.reference || '—'}`);
-    parsedGeom.forEach(ll => allLatLngs.push(ll));
+    // Vérifier si la géométrie est déjà un tableau de points
+    let geomPoints = null;
+    
+    if (ilot.geom && Array.isArray(ilot.geom) && ilot.geom.length >= 3) {
+      // La géométrie est déjà un tableau de coordonnées
+      geomPoints = [];
+      for (const coord of ilot.geom) {
+        const ll = parseCoord(coord);
+        if (ll) geomPoints.push(ll);
+      }
+    }
+    
+    if (geomPoints && geomPoints.length >= 3) {
+      const poly = L.polygon(geomPoints, {
+        color: '#9e9e9e', weight: 2, opacity: 0.7,
+        fillOpacity: 0.1, fillColor: '#bdbdbd'
+      });
+      poly.addTo(currentIlotGroup);
+      poly.bindPopup(`<b>🏷️ Îlot ${ilot.numero}</b><br>Référence : ${ilot.reference || '—'}`);
+      geomPoints.forEach(ll => allLatLngs.push(ll));
+      console.log(`Îlot ${ilot.numero} ajouté avec ${geomPoints.length} points`);
+    } else {
+      console.warn(`Îlot ${ilot.numero} ignoré - géométrie invalide:`, ilot.geom);
+    }
   });
 
-  // ─── 2. PARCELLES ────────────────────────────────
+  // ========== 2. PARCELLES ==========
   parcelsGeo.forEach(parcel => {
-    const parsedGeom = _parseGeometry(parcel.geom);
-    if (!parsedGeom || parsedGeom.length < 3) return;
-    parcelCount++;
-    const colors = getCultureColor(parcel.culture);
-    const poly = L.polygon(parsedGeom, {
-      color: colors.color, weight: 2, opacity: 0.8,
-      fillOpacity: 0.4, fillColor: colors.fill
-    });
-    poly.addTo(currentParcelGroup);
-    const surfHa = parcel.surface ? (parseFloat(parcel.surface) / 100).toFixed(2) : '?';
-    poly.bindPopup(`
-      <b>🌾 ${parcel.culture}</b><br>
-      Îlot : ${parcel.ilot} | Parcelle : ${parcel.parcelle}<br>
-      Surface : ${surfHa.replace('.', ',')} ha
-    `);
-    parsedGeom.forEach(ll => allLatLngs.push(ll));
+    let geomPoints = null;
+    
+    if (parcel.geom && Array.isArray(parcel.geom) && parcel.geom.length >= 3) {
+      geomPoints = [];
+      for (const coord of parcel.geom) {
+        const ll = parseCoord(coord);
+        if (ll) geomPoints.push(ll);
+      }
+    }
+    
+    if (geomPoints && geomPoints.length >= 3) {
+      parcelCount++;
+      const colors = getCultureColor(parcel.culture);
+      const poly = L.polygon(geomPoints, {
+        color: colors.color, weight: 2, opacity: 0.8,
+        fillOpacity: 0.5, fillColor: colors.fill
+      });
+      poly.addTo(currentParcelGroup);
+      const surfHa = parcel.surface ? (parseFloat(parcel.surface) / 100).toFixed(2) : '?';
+      poly.bindPopup(`
+        <b>🌾 ${parcel.culture}</b><br>
+        Îlot : ${parcel.ilot} | Parcelle : ${parcel.parcelle}<br>
+        Surface : ${surfHa.replace('.', ',')} ha
+      `);
+      geomPoints.forEach(ll => allLatLngs.push(ll));
+    }
   });
 
-  // ─── 3. MAEC ─────────────────────────────────────
+  // ========== 3. MAEC ==========
   const allMaec = [
     ...(maecGeo.surfaciques || []),
     ...(maecGeo.lineaires || []),
@@ -304,89 +287,64 @@ export function initMap(ilotsGeo, parcelsGeo, maecGeo, snaList = []) {
 
   allMaec.forEach(maec => {
     const type = (maec.sousType || '').toUpperCase();
+    let geomPoints = null;
+    
+    if (maec.geom && Array.isArray(maec.geom)) {
+      geomPoints = [];
+      for (const coord of maec.geom) {
+        const ll = parseCoord(coord);
+        if (ll) geomPoints.push(ll);
+      }
+    }
 
-    if (type === 'S') {
-      const parsedGeom = _parseGeometry(maec.geom);
-      if (!parsedGeom || parsedGeom.length < 3) return;
+    if (type === 'S' && geomPoints && geomPoints.length >= 3) {
       maecCount++;
-      const poly = L.polygon(parsedGeom, {
-        color: '#2e7d32', weight: 2, opacity: 0.9,
-        fillOpacity: 0.30, fillColor: '#66bb6a', dashArray: '6, 4'
+      const poly = L.polygon(geomPoints, {
+        color: '#1e88e5', weight: 2, opacity: 0.8,
+        fillOpacity: 0.3, fillColor: '#42a5f5'
       });
       poly.addTo(currentMaecSGroup);
-      poly.bindPopup(_maecPopup('🟢 MAEC Surfacique', maec));
-      parsedGeom.forEach(ll => allLatLngs.push(ll));
+      poly.bindPopup(maecPopup('🌿 MAEC Surfacique', maec));
+      geomPoints.forEach(ll => allLatLngs.push(ll));
 
-    } else if (type === 'SL') {
-      const parsedGeom = _parseGeometry(maec.geom);
-      if (!parsedGeom || parsedGeom.length < 2) return;
+    } else if (type === 'L' && geomPoints && geomPoints.length >= 2) {
       maecCount++;
-      const poly = L.polygon(parsedGeom, {
-        color: '#e65100', weight: 3, opacity: 0.95,
-        fillOpacity: 0.50, fillColor: '#ff8c00'
-      });
-      poly.addTo(currentMaecSLGroup);
-      poly.bindPopup(_maecPopup('🟠 MAEC Linéaire (SL)', maec));
-      parsedGeom.forEach(ll => allLatLngs.push(ll));
-
-    } else if (type === 'L') {
-      const parsedGeom = _parseGeometry(maec.geom);
-      if (!parsedGeom || parsedGeom.length < 2) return;
-      maecCount++;
-      const line = L.polyline(parsedGeom, {
-        color: '#e65100', weight: 4, opacity: 0.95, dashArray: '10, 4'
+      const line = L.polyline(geomPoints, {
+        color: '#ff8c00', weight: 3, opacity: 0.9
       });
       line.addTo(currentMaecSLGroup);
-      line.bindPopup(_maecPopup('🟠 MAEC Linéaire', maec));
-      parsedGeom.forEach(ll => allLatLngs.push(ll));
+      line.bindPopup(maecPopup('📏 MAEC Linéaire', maec));
+      geomPoints.forEach(ll => allLatLngs.push(ll));
 
     } else if (type === 'P') {
-      const ll = _parseCoord(maec.geom);
-      if (!ll) return;
-      maecCount++;
-      const marker = L.circleMarker(ll, {
-        radius: 9, color: '#b71c1c', weight: 2, opacity: 0.95,
-        fillOpacity: 0.80, fillColor: '#ef5350'
-      });
-      marker.addTo(currentMaecPGroup);
-      marker.bindPopup(_maecPopup('🔴 MAEC Ponctuelle', maec));
-      allLatLngs.push(ll);
-
-    } else {
-      const parsedGeom = _parseGeometry(maec.geom);
-      if (parsedGeom && parsedGeom.length >= 3) {
+      const ll = parseCoord(maec.geom);
+      if (ll) {
         maecCount++;
-        const poly = L.polygon(parsedGeom, {
-          color: '#1e88e5', weight: 2, opacity: 0.8,
-          fillOpacity: 0.25, fillColor: '#42a5f5', dashArray: '5, 5'
+        const marker = L.circleMarker(ll, {
+          radius: 6, color: '#d32f2f', weight: 2, opacity: 0.9,
+          fillOpacity: 0.7, fillColor: '#ef5350'
         });
-        poly.addTo(currentMaecSGroup);
-        poly.bindPopup(_maecPopup('🌿 MAEC', maec));
-        parsedGeom.forEach(ll => allLatLngs.push(ll));
+        marker.addTo(currentMaecPGroup);
+        marker.bindPopup(maecPopup('🔴 MAEC Ponctuelle', maec));
+        allLatLngs.push(ll);
       }
     }
   });
 
-  // ─── 4. SNA ──────────────────────────────────────
-  _buildSnaLayers(snaList);
+  // ========== 4. SNA ==========
+  buildSnaLayers(snaList);
 
-  _fitBounds(allLatLngs, parcelsGeo);
-  _updateLegend(parcelsGeo, ilotsGeo, maecGeo, maecCount, snaList);
+  // Centrage
+  fitBounds(allLatLngs);
 
-  const statsSpan = document.getElementById('map-stats');
-  if (statsSpan) {
-    statsSpan.innerHTML =
-      `📍 ${ilotsGeo.length} îlot(s) | 🌾 ${parcelCount} parcelle(s) | 🌿 ${maecCount} MAEC | 🏗️ ${snaList.length} SNA`;
-  }
-
-  _setupLayerControls();
-  _buildSnaFilterUI(snaList);
+  // Mise à jour des stats et contrôles
+  updateStats(ilotsGeo, parcelCount, maecCount, snaList);
+  setupLayerControls();
+  buildSnaFilterUI(snaList);
+  updateLegend(parcelsGeo, ilotsGeo, maecCount, snaList);
 }
 
-// ===================================================
-// SNA — CONSTRUCTION DES COUCHES
-// ===================================================
-function _buildSnaLayers(snaList) {
+function buildSnaLayers(snaList) {
   snaLayerGroups = {};
 
   for (const sna of snaList) {
@@ -395,13 +353,18 @@ function _buildSnaLayers(snaList) {
       snaLayerGroups[typeCode] = L.layerGroup().addTo(currentMap);
     }
 
-    const style = _getSnaStyle(sna);
-    const popup = _snaPopup(sna);
+    const style = getSnaStyle(sna);
+    const popup = snaPopup(sna);
 
+    // Géométrie polygonale
     if (sna.geom && Array.isArray(sna.geom) && sna.geom.length >= 3) {
-      const parsedGeom = _parseGeometry(sna.geom);
-      if (parsedGeom && parsedGeom.length >= 3) {
-        const poly = L.polygon(parsedGeom, {
+      const points = [];
+      for (const coord of sna.geom) {
+        const ll = parseCoord(coord);
+        if (ll) points.push(ll);
+      }
+      if (points.length >= 3) {
+        const poly = L.polygon(points, {
           color: style.color, weight: 2, opacity: 0.9,
           fillOpacity: 0.40, fillColor: style.fill, dashArray: '4, 3'
         });
@@ -409,18 +372,24 @@ function _buildSnaLayers(snaList) {
         poly.addTo(snaLayerGroups[typeCode]);
       }
     }
+    // Géométrie linéaire
     else if (sna.geomLine && Array.isArray(sna.geomLine) && sna.geomLine.length >= 2) {
-      const parsedGeom = _parseGeometry(sna.geomLine);
-      if (parsedGeom && parsedGeom.length >= 2) {
-        const line = L.polyline(parsedGeom, {
+      const points = [];
+      for (const coord of sna.geomLine) {
+        const ll = parseCoord(coord);
+        if (ll) points.push(ll);
+      }
+      if (points.length >= 2) {
+        const line = L.polyline(points, {
           color: style.color, weight: 4, opacity: 0.9, dashArray: '8, 4'
         });
         line.bindPopup(popup);
         line.addTo(snaLayerGroups[typeCode]);
       }
     }
+    // Géométrie ponctuelle
     else if (sna.geomPoint) {
-      const ll = _parseCoord(sna.geomPoint);
+      const ll = parseCoord(sna.geomPoint);
       if (ll) {
         const marker = L.circleMarker(ll, {
           radius: 8, color: style.color, weight: 2, opacity: 0.95,
@@ -433,15 +402,15 @@ function _buildSnaLayers(snaList) {
   }
 }
 
-function _snaPopup(sna) {
-  const cat     = sna.categorieSna || _getCatFromType(sna.typeSna) || '—';
-  const style   = SNA_CATEGORIE_STYLE[cat] || SNA_CATEGORIE_STYLE.AT;
+function snaPopup(sna) {
+  const cat = sna.categorieSna || getCatFromType(sna.typeSna) || '—';
+  const style = SNA_CATEGORIE_STYLE[cat] || SNA_CATEGORIE_STYLE.AT;
   const typeLib = SNA_TYPE_LABELS[sna.typeSna] || sna.typeSna || '—';
-  const surfHa  = sna.surfaceGraphique ? sna.surfaceGraphique.toFixed(4).replace('.', ',') : '—';
-  const ilots   = sna.ilots?.length ? sna.ilots.join(', ') : '—';
-  const largeur  = sna.largeurCalculee ? sna.largeurCalculee.toFixed(1).replace('.', ',') + ' m' : null;
-  const longueur = sna.longueurIae    ? sna.longueurIae.toFixed(0).replace('.', ',') + ' m'     : null;
-  const date     = sna.dateMiseAjour  ? `<br><span style="color:#888;font-size:0.75rem">MAJ : ${sna.dateMiseAjour}</span>` : '';
+  const surfHa = sna.surfaceGraphique ? sna.surfaceGraphique.toFixed(4).replace('.', ',') : '—';
+  const ilots = sna.ilots?.length ? sna.ilots.join(', ') : '—';
+  const largeur = sna.largeurCalculee ? sna.largeurCalculee.toFixed(1).replace('.', ',') + ' m' : null;
+  const longueur = sna.longueurIae ? sna.longueurIae.toFixed(0).replace('.', ',') + ' m' : null;
+  const date = sna.dateMiseAjour ? `<br><span style="color:#888;font-size:0.75rem">MAJ : ${sna.dateMiseAjour}</span>` : '';
 
   return `
     <div style="min-width:210px;font-size:0.85rem;line-height:1.7">
@@ -452,7 +421,7 @@ function _snaPopup(sna) {
       <b>N° SNA :</b> ${sna.numeroSna || '—'}<br>
       <b>Type :</b> <code>${sna.typeSna}</code> — ${typeLib}<br>
       <b>Surface :</b> ${surfHa} ha<br>
-      ${largeur  ? `<b>Largeur :</b> ${largeur}<br>` : ''}
+      ${largeur ? `<b>Largeur :</b> ${largeur}<br>` : ''}
       ${longueur ? `<b>Longueur IAE :</b> ${longueur}<br>` : ''}
       <b>Îlot(s) :</b> ${ilots}
       ${sna.parcelleAssociee ? `<br><b>Parcelle :</b> ${sna.parcelleAssociee}` : ''}
@@ -461,10 +430,121 @@ function _snaPopup(sna) {
   `;
 }
 
-// ===================================================
-// SNA — FILTRES
-// ===================================================
-function _buildSnaFilterUI(snaList) {
+function maecPopup(titre, maec) {
+  const num = maec.numero || '—';
+  const code = maec.code || '—';
+  const sousType = maec.sousType || '—';
+  const debut = maec.premiereC || null;
+  const fin = maec.derniereC || null;
+  let campagnes;
+  if (debut && fin) campagnes = `${debut} → ${fin}`;
+  else if (debut) campagnes = `Depuis ${debut}`;
+  else if (fin) campagnes = `Jusqu'en ${fin}`;
+  else campagnes = '⚠️ Élément modifié';
+  return `<b>${titre}</b><br>Numéro : <b>${num}</b><br>Code : ${code}<br>Sous-type : ${sousType}<br>Campagnes : ${campagnes}`;
+}
+
+function fitBounds(allLatLngs) {
+  const valid = allLatLngs.filter(Boolean);
+  if (valid.length === 0) {
+    currentMap.setView([48.25, -0.93], 12);
+    return;
+  }
+  
+  try {
+    const bounds = L.latLngBounds(valid);
+    if (bounds.isValid()) {
+      currentMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+    } else {
+      currentMap.setView([48.25, -0.93], 12);
+    }
+  } catch (e) {
+    console.warn('Erreur bounds:', e);
+    currentMap.setView([48.25, -0.93], 12);
+  }
+}
+
+function updateStats(ilotsGeo, parcelCount, maecCount, snaList) {
+  const statsSpan = document.getElementById('map-stats');
+  if (statsSpan) {
+    statsSpan.innerHTML =
+      `📍 ${ilotsGeo.length} îlot(s) | 🌾 ${parcelCount} parcelle(s) | 🌿 ${maecCount} MAEC | 🏗️ ${snaList.length} SNA`;
+  }
+}
+
+function updateLegend(parcelsGeo, ilotsGeo, maecCount, snaList) {
+  const legendDiv = document.getElementById('map-legend-items');
+  if (!legendDiv) return;
+  
+  let html = '';
+  const uniqueCultures = [...new Set(parcelsGeo.map(p => p.culture))];
+  uniqueCultures.forEach(culture => {
+    const colors = getCultureColor(culture);
+    html += `<div class="legend-item"><div class="legend-color" style="background: ${colors.color};"></div><span>${culture}</span></div>`;
+  });
+  
+  if (ilotsGeo.length > 0) {
+    html += `<div class="legend-item"><div class="legend-color" style="background: #9e9e9e;"></div><span>Îlots PAC</span></div>`;
+  }
+  
+  if (maecCount > 0) {
+    html += `<div style="margin-top:5px; border-top:1px solid #ccc; padding-top:3px;"><strong>MAEC</strong></div>`;
+    html += `<div class="legend-item"><div class="legend-color" style="background: #1e88e5;"></div><span>Surfacique</span></div>`;
+    html += `<div class="legend-item"><div class="legend-line" style="background: #ff8c00;"></div><span>Linéaire</span></div>`;
+    html += `<div class="legend-item"><div class="legend-point" style="background: #d32f2f;"></div><span>Ponctuelle</span></div>`;
+  }
+  
+  if (snaList.length > 0) {
+    html += `<div style="margin-top:5px; border-top:1px solid #ccc; padding-top:3px;"><strong>SNA</strong></div>`;
+    html += `<div class="legend-item"><div class="legend-color" style="background: #0277bd;"></div><span>Artificialisé</span></div>`;
+    html += `<div class="legend-item"><div class="legend-color" style="background: #bf360c;"></div><span>Autre terre</span></div>`;
+    html += `<div class="legend-item"><div class="legend-color" style="background: #2e7d32;"></div><span>Végétation</span></div>`;
+  }
+  
+  legendDiv.innerHTML = html || 'Aucune donnée';
+}
+
+function setupLayerControls() {
+  const toggleIlots = document.getElementById('toggleIlots');
+  const toggleParcelles = document.getElementById('toggleParcelles');
+  const toggleMaec = document.getElementById('toggleMaec');
+  const toggleSNA = document.getElementById('toggleSNA');
+  
+  if (toggleIlots) {
+    toggleIlots.checked = true;
+    toggleIlots.onclick = () => toggleIlots.checked ? currentIlotGroup.addTo(currentMap) : currentIlotGroup.remove();
+  }
+  if (toggleParcelles) {
+    toggleParcelles.checked = true;
+    toggleParcelles.onclick = () => toggleParcelles.checked ? currentParcelGroup.addTo(currentMap) : currentParcelGroup.remove();
+  }
+  if (toggleMaec) {
+    toggleMaec.checked = true;
+    toggleMaec.onclick = () => {
+      if (toggleMaec.checked) {
+        currentMaecSGroup.addTo(currentMap);
+        currentMaecSLGroup.addTo(currentMap);
+        currentMaecPGroup.addTo(currentMap);
+      } else {
+        currentMaecSGroup.remove();
+        currentMaecSLGroup.remove();
+        currentMaecPGroup.remove();
+      }
+    };
+  }
+  if (toggleSNA) {
+    toggleSNA.checked = true;
+    toggleSNA.onclick = () => {
+      if (toggleSNA.checked) {
+        Object.values(snaLayerGroups).forEach(g => g.addTo(currentMap));
+      } else {
+        Object.values(snaLayerGroups).forEach(g => g.remove());
+      }
+    };
+  }
+}
+
+function buildSnaFilterUI(snaList) {
   const container = document.getElementById('sna-map-filters');
   if (!container) return;
 
@@ -475,7 +555,7 @@ function _buildSnaFilterUI(snaList) {
 
   const byCategorie = {};
   for (const sna of snaList) {
-    const cat = sna.categorieSna || _getCatFromType(sna.typeSna) || 'AT';
+    const cat = sna.categorieSna || getCatFromType(sna.typeSna) || 'AT';
     const type = sna.typeSna || 'XX';
     if (!byCategorie[cat]) byCategorie[cat] = {};
     byCategorie[cat][type] = (byCategorie[cat][type] || 0) + 1;
@@ -521,23 +601,23 @@ function _buildSnaFilterUI(snaList) {
     ${catHtml}
   `;
 
-  container.querySelectorAll('.sna-type-cb').forEach(cb => cb.addEventListener('change', () => _applySnaFilter(container)));
+  container.querySelectorAll('.sna-type-cb').forEach(cb => cb.addEventListener('change', () => applySnaFilter(container)));
   container.querySelectorAll('.sna-cat-cb').forEach(cb => cb.addEventListener('change', () => {
     const cat = cb.dataset.cat;
     container.querySelectorAll(`.sna-type-cb[data-cat="${cat}"]`).forEach(t => t.checked = cb.checked);
-    _applySnaFilter(container);
+    applySnaFilter(container);
   }));
   document.getElementById('sna-all-btn')?.addEventListener('click', () => {
     container.querySelectorAll('.sna-type-cb, .sna-cat-cb').forEach(cb => cb.checked = true);
-    _applySnaFilter(container);
+    applySnaFilter(container);
   });
   document.getElementById('sna-none-btn')?.addEventListener('click', () => {
     container.querySelectorAll('.sna-type-cb, .sna-cat-cb').forEach(cb => cb.checked = false);
-    _applySnaFilter(container);
+    applySnaFilter(container);
   });
 }
 
-function _applySnaFilter(container) {
+function applySnaFilter(container) {
   const activeTypes = new Set();
   container.querySelectorAll('.sna-type-cb:checked').forEach(cb => activeTypes.add(cb.dataset.type));
 
@@ -554,73 +634,6 @@ function _applySnaFilter(container) {
 
   const countEl = document.getElementById('sna-map-count');
   if (countEl) countEl.textContent = `${visibleCount} / ${snaData.length} affichées`;
-}
-
-// ===================================================
-// HELPERS
-// ===================================================
-function _maecPopup(titre, maec) {
-  const num = maec.numero || '—';
-  const code = maec.code || '—';
-  const sousType = maec.sousType || '—';
-  const debut = maec.premiereC || null;
-  const fin = maec.derniereC || null;
-  let campagnes;
-  if (debut && fin) campagnes = `${debut} → ${fin}`;
-  else if (debut) campagnes = `Depuis ${debut}`;
-  else if (fin) campagnes = `Jusqu'en ${fin}`;
-  else campagnes = '⚠️ Élément modifié';
-  return `<b>${titre}</b><br>Numéro : <b>${num}</b><br>Code : ${code}<br>Sous-type : ${sousType}<br>Campagnes : ${campagnes}`;
-}
-
-function _fitBounds(allLatLngs, parcelsGeo) {
-  console.log('_fitBounds - nombre de points:', allLatLngs.length);
-  if (allLatLngs.length > 0) {
-    console.log('Premier point après conversion:', allLatLngs[0]);
-  }
-  
-  const valid = allLatLngs.filter(Boolean);
-  if (valid.length === 0) {
-    const fallbackBounds = L.latLngBounds([41.3, -4.8], [51.1, 9.6]);
-    currentMap.fitBounds(fallbackBounds, { padding: [40, 40] });
-    return;
-  }
-  
-  try {
-    const bounds = L.latLngBounds(valid);
-    if (!bounds.isValid()) {
-      currentMap.setView([46.5, 2.5], 7);
-      return;
-    }
-    currentMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-    console.log('Carte centrée sur:', bounds.getCenter());
-  } catch (e) {
-    console.warn('Erreur bounds:', e);
-    currentMap.setView([46.5, 2.5], 7);
-  }
-}
-
-function _updateLegend(parcelsGeo, ilotsGeo, maecGeo, maecCount, snaList) {
-  const legendDiv = document.getElementById('map-legend-items');
-  if (!legendDiv) return;
-  legendDiv.innerHTML = '📍 Légende mise à jour';
-}
-
-function _setupLayerControls() {
-  const toggleIlots = document.getElementById('toggleIlots');
-  const toggleParcelles = document.getElementById('toggleParcelles');
-  
-  if (toggleIlots) toggleIlots.onclick = () => toggleIlots.checked ? currentIlotGroup.addTo(currentMap) : currentIlotGroup.remove();
-  if (toggleParcelles) toggleParcelles.onclick = () => toggleParcelles.checked ? currentParcelGroup.addTo(currentMap) : currentParcelGroup.remove();
-  
-  const toggleSNA = document.getElementById('toggleSNA');
-  if (toggleSNA) {
-    toggleSNA.checked = true;
-    toggleSNA.onclick = () => {
-      if (toggleSNA.checked) Object.values(snaLayerGroups).forEach(g => g.addTo(currentMap));
-      else Object.values(snaLayerGroups).forEach(g => g.remove());
-    };
-  }
 }
 
 export function invalidateMapSize() {
