@@ -3,6 +3,7 @@
 // Structure attendue pour chaque objet SNA :
 //   sna.intersectionsSnaParcelles : tableau d'objets { numeroIlot, numeroParcelle, longueurIae }
 // Barèmes IAE : V1=30m², V2=10m²/ml, V4=20m²/ml
+// Mesures affichées : A1/V3 → surfaceGraphique (m²) | A4/A7 → longueur-iae (ml)
 //     → utilisé pour V4 (haie) et V2 (arbres alignés) : longueur IAE par parcelle
 //     → V1 (arbre isolé) : 1 arbre = 1 SNA, pas de longueur, comptage automatique
 //
@@ -140,22 +141,34 @@ export function renderSNA() {
             iaeCell = `<span style="background:${iaeColor.bg}; color:${iaeColor.text}; border-radius:12px; padding:3px 10px; font-size:0.78rem; font-weight:700">${label}</span>`;
         }
 
-        // Colonne longueur/arbres selon le type SNA
+        // Colonne longueur/surface/arbres selon le type SNA
         let mesureCell = '—';
-        if (sna.typeSna === 'V4' || sna.typeSna === 'V2') {
-            // Haie ou arbres alignés : afficher longueur IAE par parcelle
+        if (sna.typeSna === 'V4' || sna.typeSna === 'V2' || sna.typeSna === 'A4' || sna.typeSna === 'A7') {
+            // Éléments linéaires : longueur IAE par parcelle
             const parcelles = sna.intersectionsSnaParcelles || [];
             if (parcelles.length > 0) {
+                const styleLin = sna.typeSna === 'A4' ? { bg: '#e0f2f1', text: '#00695c' }
+                               : sna.typeSna === 'A7' ? { bg: '#fce4ec', text: '#880e4f' }
+                               : { bg: '#e8f5e9', text: '#2e7d32' };
                 const lignes = parcelles.map(p => {
                     const lon = p.longueurIae != null ? `<strong>${String(p.longueurIae).replace('.', ',')} m</strong>` : '—';
                     const label = `Î${p.numeroIlot}-P${p.numeroParcelle}`;
-                    return `<span style="display:inline-block; margin:1px 4px 1px 0; background:#e8f5e9; color:#2e7d32; border-radius:12px; padding:2px 8px; font-size:0.72rem">${label} : ${lon}</span>`;
+                    return `<span style="display:inline-block; margin:1px 4px 1px 0; background:${styleLin.bg}; color:${styleLin.text}; border-radius:12px; padding:2px 8px; font-size:0.72rem">${label} : ${lon}</span>`;
                 }).join('');
-                mesureCell = `<span title="Longueur IAE par parcelle">📏 ${lignes}</span>`;
+                mesureCell = `<span title="Longueur par parcelle">📏 ${lignes}</span>`;
             }
         } else if (sna.typeSna === 'V1') {
-            // Arbre isolé : 1 arbre par SNA (point), afficher juste l'indicateur
+            // Arbre isolé : 1 arbre par SNA (point)
             mesureCell = `<span style="background:#fff3e0; color:#e65100; border-radius:12px; padding:2px 8px; font-size:0.72rem; font-weight:600">🌳 1 arbre</span>`;
+        } else if (sna.typeSna === 'A1' || sna.typeSna === 'V3') {
+            // Mare (A1) ou bosquet (V3) : surfaceGraphique est en m² dans le XML PAC
+            const surfAffiche = sna.surfaceGraphique != null
+                ? `${String(sna.surfaceGraphique).replace('.', ',')} m²`
+                : '—';
+            const styleSurf = sna.typeSna === 'A1'
+                ? { bg: '#e3f2fd', text: '#0277bd', icon: '💧' }
+                : { bg: '#c8e6c9', text: '#2e7d32', icon: '🌳' };
+            mesureCell = `<span style="background:${styleSurf.bg}; color:${styleSurf.text}; border-radius:12px; padding:2px 8px; font-size:0.72rem; font-weight:600">${styleSurf.icon} ${surfAffiche}</span>`;
         }
         
         return `
@@ -214,6 +227,29 @@ function updateSNASummary() {
         ? `<div class="eco-kpi"><div class="val">${nbArbresIsoles}</div><div class="lbl">Arbres isoles (V1)</div></div>`
         : '';
 
+    // Surfaces A1 (mare) et V3 (bosquet)
+    const totalSurfA1 = snaRows.filter(s => s.typeSna === 'A1')
+        .reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
+    const totalSurfV3 = snaRows.filter(s => s.typeSna === 'V3')
+        .reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
+
+    // Longueur A4 (fossé non maçonné) et A7 (mur traditionnel)
+    const totalMlA4 = snaRows.filter(s => s.typeSna === 'A4')
+        .reduce((sum, s) => sum + (s.intersectionsSnaParcelles || [])
+            .reduce((ps, p) => ps + (p.longueurIae || 0), 0), 0);
+    const totalMlA7 = snaRows.filter(s => s.typeSna === 'A7')
+        .reduce((sum, s) => sum + (s.intersectionsSnaParcelles || [])
+            .reduce((ps, p) => ps + (p.longueurIae || 0), 0), 0);
+
+    const a1Block = totalSurfA1 > 0
+        ? `<div class="eco-kpi"><div class="val">${totalSurfA1.toFixed(2).replace('.', ',')} m²</div><div class="lbl">💧 Surface mares (A1)</div></div>` : '';
+    const v3Block = totalSurfV3 > 0
+        ? `<div class="eco-kpi"><div class="val">${totalSurfV3.toFixed(2).replace('.', ',')} m²</div><div class="lbl">🌳 Surface bosquets (V3)</div></div>` : '';
+    const a4Block = totalMlA4 > 0
+        ? `<div class="eco-kpi"><div class="val">${Math.round(totalMlA4).toLocaleString('fr')} m</div><div class="lbl">〰️ Fossés non maç. (A4)</div></div>` : '';
+    const a7Block = totalMlA7 > 0
+        ? `<div class="eco-kpi"><div class="val">${Math.round(totalMlA7).toLocaleString('fr')} m</div><div class="lbl">🪨 Murs trad. (A7)</div></div>` : '';
+
     // Total IAE toutes SNA confondues
     const totalIAEm2 = snaRows.reduce((sum, s) => sum + (calcIAE(s) || 0), 0);
     const totalIAEha = (totalIAEm2 / 10000).toFixed(4).replace('.', ',');
@@ -222,7 +258,7 @@ function updateSNASummary() {
         <div class="eco-kpi"><div class="val">${snaRows.length}</div><div class="lbl">SNA totales</div></div>
         <div class="eco-kpi"><div class="val">${totalSurface.toFixed(2).replace('.', ',')} ha</div><div class="lbl">Surface totale SNA</div></div>
         <div class="eco-kpi"><div class="val">${categories.length}</div><div class="lbl">Categories</div></div>
-        ${haiesBlock}${v2Block}${arbresBlock}
+        ${haiesBlock}${v2Block}${arbresBlock}${a1Block}${v3Block}${a4Block}${a7Block}
         <div class="eco-kpi" style="border-left:3px solid #6a1b9a"><div class="val" style="color:#6a1b9a">${Math.round(totalIAEm2).toLocaleString('fr')} m²</div><div class="lbl">Surface IAE totale</div></div>
     `;
 }
