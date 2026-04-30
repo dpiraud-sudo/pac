@@ -53,7 +53,6 @@ function renderApp(data) {
   setIlotsN(allRows);     
   setBCAE7Data(allRows);
   renderBCAE7();   // ← transmet les rows N à comparaison.js
-  setSNAdata(snaList);
   setDocN(lastXmlDoc);
 
   const pacageInfo = document.getElementById('pacage-info');
@@ -243,6 +242,5 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
 
-}
-
 });
+
