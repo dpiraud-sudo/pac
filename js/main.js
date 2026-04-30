@@ -52,7 +52,7 @@ function renderApp(data) {
   setIlotsData(allRows);
   setIlotsN(allRows);     
   setBCAE7Data(allRows);
-  renderBCAE7();   // ← transmet les rows N à comparaison.js
+  renderBCAE7();
   setDocN(lastXmlDoc);
 
   const pacageInfo = document.getElementById('pacage-info');
@@ -240,6 +240,4 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabId = btn.getAttribute('data-tab');
     if (tabId) btn.addEventListener('click', () => switchTab(tabId));
   });
-
-
-
+}); // <-- Cette accolade ferme le DOMContentLoaded
