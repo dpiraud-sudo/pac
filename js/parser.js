@@ -11,38 +11,39 @@ proj4.defs(
 export function convertToLatLng(x, y) {
   const xNum = parseFloat(x);
   const yNum = parseFloat(y);
-
-  // Lambert-93 (EPSG:2154) — plages métriques françaises sans ambiguïté :
-  // X ∈ [0, 1 300 000]  Y ∈ [6 000 000, 7 200 000]
-  const isLambert93 = (xNum >= 0 && xNum <= 1300000 && yNum >= 6000000 && yNum <= 7200000);
+  
+  // Si les coordonnées sont déjà en degrés WGS84 (France métro: lat 41-51, lon -5-10)
+  if (Math.abs(xNum) < 180 && Math.abs(yNum) < 90) {
+    // Déjà en degrés, mais vérifier l'ordre
+    // En général les fichiers PAC stockent (longitude, latitude)
+    // Leaflet attend [latitude, longitude]
+    console.log(`Coordonnées en degrés: (${xNum}, ${yNum}) -> lat=${yNum}, lng=${xNum}`);
+    return [yNum, xNum];
+  }
+  
+  // UTM zone 40S (océan Indien) - à ne PAS utiliser pour la métropole
+  // Détecter si c'est du Lambert 93 (métropole)
+  // Lambert 93: X entre 0 et 1 200 000, Y entre 6 000 000 et 7 200 000
+  const isLambert93 = (xNum >= 0 && xNum <= 1200000 && yNum >= 6000000 && yNum <= 7200000);
+  
   if (isLambert93) {
     try {
-      const [lon, lat] = proj4('EPSG:2154', 'EPSG:4326', [xNum, yNum]);
+      const [lon, lat] = proj4("EPSG:2154", "EPSG:4326", [xNum, yNum]);
+      console.log(`Lambert93 (${xNum}, ${yNum}) -> WGS84 (${lat}, ${lon})`);
       return [lat, lon];
     } catch (e) {
-      console.error('Erreur conversion Lambert-93 :', e);
+      console.error('Erreur conversion Lambert93:', e);
       return [yNum, xNum];
     }
   }
-
-  // Déjà en WGS84 degrés — format GeoJSON [lng, lat] (lon en premier)
-  // France métro : lon ∈ [-5, 10], lat ∈ [41, 51]
-  if (xNum >= -180 && xNum <= 180 && yNum >= -90 && yNum <= 90) {
-    // Si xNum ressemble à une longitude française et yNum à une latitude française
-    if (xNum >= -5 && xNum <= 10 && yNum >= 41 && yNum <= 51) return [yNum, xNum]; // [lng, lat] → [lat, lng]
-    // Ordre inverse possible [lat, lng] déjà correct pour Leaflet
-    if (yNum >= -5 && yNum <= 10 && xNum >= 41 && xNum <= 51) return [xNum, yNum];
-    // Fallback générique GeoJSON [lng, lat]
-    return [yNum, xNum];
-  }
-
-  // Autres projections — tentative générique
+  
+  // Autres projections (UTM, etc.)
   const projCode = detectProjection(xNum, yNum);
   try {
-    const [lon, lat] = proj4(projCode, 'EPSG:4326', [xNum, yNum]);
+    const [lon, lat] = proj4(projCode, "EPSG:4326", [xNum, yNum]);
     return [lat, lon];
   } catch (e) {
-    console.error(`Erreur conversion ${projCode} :`, e);
+    console.error(`Erreur conversion ${projCode}:`, e);
     return [yNum, xNum];
   }
 }
@@ -51,29 +52,13 @@ export function parseGmlPolygon(gmlString) {
   if (!gmlString) return null;
   const matches = [...gmlString.matchAll(/<gml:coordinates>([\s\S]*?)<\/gml:coordinates>/g)];
   if (!matches.length) return null;
-
-  function parseRing(rawText) {
-    const ring = [];
-    for (const pair of rawText.trim().split(/\s+/)) {
-      if (!pair) continue;
-      const [x, y] = pair.split(',').map(Number);
-      if (!isNaN(x) && !isNaN(y)) ring.push(convertToLatLng(x, y));
-    }
-    return ring;
+  const ring = [];
+  for (const pair of matches[0][1].trim().split(/\s+/)) {
+    if (!pair) continue;
+    const [x, y] = pair.split(',').map(Number);
+    if (!isNaN(x) && !isNaN(y)) ring.push(convertToLatLng(x, y));
   }
-
-  const outerRing = parseRing(matches[0][1]);
-  if (outerRing.length < 3) return null;
-
-  // Trous éventuels (inner rings)
-  const holes = [];
-  for (let i = 1; i < matches.length; i++) {
-    const hole = parseRing(matches[i][1]);
-    if (hole.length >= 3) holes.push(hole);
-  }
-
-  // L.polygon accepte [[outerRing, hole1, hole2, ...]] ou juste outerRing
-  return holes.length > 0 ? [outerRing, ...holes] : outerRing;
+  return ring.length >= 3 ? ring : null;
 }
 
 export function parseGmlLineString(gmlString) {
@@ -138,7 +123,6 @@ function parseSNA(xmlDoc) {
     const categorieSna = getText('categorieSna');
     const surfaceGraphique = parseFloat(getText('surfaceGraphique')) || 0;
     const largeurCalculee = parseFloat(getText('largeurCalculee')) || null;
-    const longueurIae = parseFloat(getText('longueurIae')) || null;
     const dateMiseAjour = getText('dateMiseAjour') || null;
     
     // Récupération des îlots associés
@@ -152,13 +136,24 @@ function parseSNA(xmlDoc) {
       }
     }
     
+    // Récupération de toutes les intersections parcelles avec leur longueur IAE
     let parcelleAssociee = null;
+    const intersectionsSnaParcelles = [];
     const interParc = sna.getElementsByTagNameNS(NS, 'intersectionsSnaParcelles')[0];
     if (interParc) {
-      const inter = interParc.getElementsByTagNameNS(NS, 'intersectionSnaParcelle')[0];
-      if (inter) {
-        parcelleAssociee = inter.getElementsByTagNameNS(NS, 'numeroParcelle')[0]?.textContent?.trim() || null;
-        const numIlot = inter.getElementsByTagNameNS(NS, 'numeroIlot')[0]?.textContent?.trim();
+      const inters = interParc.getElementsByTagNameNS(NS, 'intersectionSnaParcelle');
+      for (const inter of inters) {
+        const numIlot    = inter.getElementsByTagNameNS(NS, 'numeroIlot')[0]?.textContent?.trim() || null;
+        const numParc    = inter.getElementsByTagNameNS(NS, 'numeroParcelle')[0]?.textContent?.trim() || null;
+        const lonRaw     = inter.getElementsByTagNameNS(NS, 'longueur-iae')[0]?.textContent?.trim();
+        const longueurIae = (lonRaw != null && lonRaw !== '') ? parseFloat(lonRaw) : null;
+        const largRaw    = inter.getElementsByTagNameNS(NS, 'largeur')[0]?.textContent?.trim();
+        const largeur    = (largRaw != null && largRaw !== '') ? parseFloat(largRaw) : null;
+
+        intersectionsSnaParcelles.push({ numeroIlot: numIlot, numeroParcelle: numParc, longueurIae, largeur });
+
+        // Compatibilité : parcelle principale = première intersection
+        if (parcelleAssociee === null && numParc) parcelleAssociee = numParc;
         if (numIlot && !ilots.includes(numIlot)) ilots.push(numIlot);
       }
     }
@@ -194,9 +189,9 @@ function parseSNA(xmlDoc) {
         categorieSna,
         surfaceGraphique,
         largeurCalculee,
-        longueurIae,
         ilots,
         parcelleAssociee,
+        intersectionsSnaParcelles,
         dateMiseAjour,
         geom,
         geomLine,
@@ -207,9 +202,6 @@ function parseSNA(xmlDoc) {
   
   console.log(`SNAs extraits : ${snaList.length}`);
 
-  // Dans parser.js, fonction parseSNA, juste avant le return
-console.log('Premier SNA extrait :', snaList[0]);
-console.log('Tous les SNA :', snaList);
   return snaList;
 }
 
