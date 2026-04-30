@@ -11,7 +11,7 @@ import { setMaecData, renderMaec } from './maec.js';
 import { renderAides } from './aides.js';
 import { initMap, invalidateMapSize, resetMap } from './carto.js';
 import { setIlotsData, renderIlots } from './ilots.js';
-import { setSNAdata, renderSNA, filterSNA, sortSNA } from './sna.js';
+import { setSNAdata, renderSNA, filterSNA, sortSNA, initSNATableHeader } from './sna.js';
 import { setDocN, renderComparaison, resetComparaison, setIlotsN } from './comparaison.js';
 import { renderEligibilite } from './eligibilite.js';
 import { setBCAE7Data, renderBCAE7 } from './bcae7.js';
@@ -45,6 +45,7 @@ function renderApp(data) {
   setSNAdata(snaList);
 
   setData(allRows);
+  initSNATableHeader();
   setEcoData(allRows);
   setMaecData(allMaecRows);
   setCabData(data.cabRows || []);
@@ -240,4 +241,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabId = btn.getAttribute('data-tab');
     if (tabId) btn.addEventListener('click', () => switchTab(tabId));
   });
+
+// Ajoutez cette fonction dans sna.js, après la fonction sortSNA()
+export function initSNATableHeader() {
+    const thead = document.getElementById('thead-sna');
+    if (!thead) return;
+    
+    thead.innerHTML = `
+        <tr>
+            <th class="sortable" data-col="numero">N° SNA <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="categorie">Catégorie <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="type">Type SNA <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="surface_ha">Surface (m²) <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="ilot">Îlots <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="parcelle">Parcelle associée <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="longueur">Mesure (surf. / long.) <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="iae">Valeur IAE <span class="sort-indicator"></span></th>
+            <th>Géométrie</th>
+        </tr>
+    `;
+    
+    // Réattacher les événements de tri
+    document.querySelectorAll('#thead-sna .sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = th.dataset.col;
+            if (col) sortSNA(col);
+        });
+    });
+}
+
+
+
 });
