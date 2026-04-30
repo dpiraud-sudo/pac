@@ -1,20 +1,10 @@
-// js/sna.js - Version avec vos mappings d'origine
-// 
-// Structure attendue pour chaque objet SNA :
-//   sna.intersectionsSnaParcelles : tableau d'objets { numeroIlot, numeroParcelle, longueurIae }
-// Barèmes IAE : V1=30m², V2=10m²/ml, V4=20m²/ml
-// Mesures affichées : A1/V3 → surfaceGraphique (m²) | A4/A7 → longueur-iae (ml)
-//     → utilisé pour V4 (haie) et V2 (arbres alignés) : longueur IAE par parcelle
-//     → V1 (arbre isolé) : 1 arbre = 1 SNA, pas de longueur, comptage automatique
-//
-// Correspond aux balises XML : <intersectionsSnaParcelles>/<intersectionSnaParcelle>
-//   avec <numeroIlot>, <numeroParcelle>, <longueur-iae>
+// js/sna.js - Version complète avec initSNATableHeader()
 import { formatHa, escHtml } from './utils.js';
 
 let snaRows = [];
 let filteredSNA = [];
 
-// Mapping des catégories SNA (vos mappings d'origine)
+// Mapping des catégories SNA
 const CATEGORIE_LABELS = {
     "EA": "🌾 Espace artificialisé",
     "AT": "🌲 Autre terre", 
@@ -42,47 +32,25 @@ const TYPE_LABELS = {
     "V8": "Végétation non agricole non caractérisée"
 };
 
-// Barèmes IAE (m² équivalent par unité)
+// Barèmes IAE
 const IAE_BAREME = {
-    V1: 30,   // 1 arbre isolé      = 30 m² IAE
-    V2: 10,   // 1 ml arbres alignés = 10 m² IAE
-    V4: 20,   // 1 ml de haie        = 20 m² IAE
-    A1: 1.5,  // 1 m² de mare        = 1,5 m² IAE
-    V3: 1.5,  // 1 m² de bosquet     = 1,5 m² IAE
-    A4: 10,   // 1 ml de fossé non maçonné = 10 m² IAE
-    A7: 1     // 1 ml de mur traditionnel  = 1 m² IAE
+    V1: 30, V2: 10, V4: 20, A1: 1.5, V3: 1.5, A4: 10, A7: 1
 };
 
-/**
- * Calcule la valeur IAE en m² pour un SNA.
- * V1 : 30 m² fixe (1 arbre)
- * V2 : somme longueur-iae × 10 m²/ml
- * V4 : somme longueur-iae × 20 m²/ml
- * Autres : null (pas de valeur IAE définie)
- */
 function calcIAE(sna) {
-    // Arbres isolés : forfait 30 m² IAE par arbre
     if (sna.typeSna === 'V1') return 30;
-
-    // Éléments linéaires : Σ longueur-iae × barème
-    if (sna.typeSna === 'V2' || sna.typeSna === 'V4' ||
-        sna.typeSna === 'A4' || sna.typeSna === 'A7') {
-        const totalMl = (sna.intersectionsSnaParcelles || [])
-            .reduce((sum, p) => sum + (p.longueurIae || 0), 0);
+    if (sna.typeSna === 'V2' || sna.typeSna === 'V4' || sna.typeSna === 'A4' || sna.typeSna === 'A7') {
+        const totalMl = (sna.intersectionsSnaParcelles || []).reduce((sum, p) => sum + (p.longueurIae || 0), 0);
         if (totalMl === 0) return null;
         return totalMl * IAE_BAREME[sna.typeSna];
     }
-
-    // Éléments surfaciques : surfaceGraphique (m²) × barème
     if (sna.typeSna === 'A1' || sna.typeSna === 'V3') {
         if (!sna.surfaceGraphique) return null;
         return sna.surfaceGraphique * IAE_BAREME[sna.typeSna];
     }
-
     return null;
 }
 
-// Couleurs par catégorie (vos mappings d'origine)
 const getCategoryStyle = (categorie) => {
     if (categorie === 'VG') return { bg: '#c8e6c9', text: '#2e7d32' };
     if (categorie === 'EA') return { bg: '#b3e5fc', text: '#0277bd' };
@@ -92,8 +60,6 @@ const getCategoryStyle = (categorie) => {
 
 export function setSNAdata(snaList) {
     snaRows = (snaList || []).map(sna => {
-        // Normalisation : s'assurer que intersectionsSnaParcelles est bien un tableau
-        // et que longueurIae est un nombre (le parseur peut nommer le champ 'longueur-iae')
         if (sna.intersectionsSnaParcelles && Array.isArray(sna.intersectionsSnaParcelles)) {
             sna.intersectionsSnaParcelles = sna.intersectionsSnaParcelles.map(p => ({
                 ...p,
@@ -144,7 +110,6 @@ export function renderSNA() {
         const ilotsAffiches = sna.ilots && sna.ilots.length ? sna.ilots.join(', ') : '—';
         const surfaceM2 = sna.surfaceGraphique != null ? sna.surfaceGraphique.toFixed(2).replace('.', ',') : '0,00';
 
-        // Valeur IAE (m² équivalent)
         const iaeM2 = calcIAE(sna);
         let iaeCell = '—';
         if (iaeM2 != null) {
@@ -154,15 +119,13 @@ export function renderSNA() {
                            : sna.typeSna === 'V3' ? { bg: '#c8e6c9', text: '#1b5e20' }
                            : sna.typeSna === 'A4' ? { bg: '#e0f2f1', text: '#004d40' }
                            : sna.typeSna === 'A7' ? { bg: '#fce4ec', text: '#880e4f' }
-                           : { bg: '#f3e5f5', text: '#6a1b9a' }; // V4
+                           : { bg: '#f3e5f5', text: '#6a1b9a' };
             const label = `${iaeM2 % 1 === 0 ? iaeM2 : iaeM2.toFixed(1)} m²`;
             iaeCell = `<span style="background:${iaeColor.bg}; color:${iaeColor.text}; border-radius:12px; padding:3px 10px; font-size:0.78rem; font-weight:700">${label}</span>`;
         }
 
-        // Colonne longueur/surface/arbres selon le type SNA
         let mesureCell = '—';
         if (sna.typeSna === 'V4' || sna.typeSna === 'V2' || sna.typeSna === 'A4' || sna.typeSna === 'A7') {
-            // Éléments linéaires : longueur IAE par parcelle
             const parcelles = sna.intersectionsSnaParcelles || [];
             if (parcelles.length > 0) {
                 const styleLin = sna.typeSna === 'A4' ? { bg: '#e0f2f1', text: '#00695c' }
@@ -176,16 +139,10 @@ export function renderSNA() {
                 mesureCell = `<span title="Longueur par parcelle">📏 ${lignes}</span>`;
             }
         } else if (sna.typeSna === 'V1') {
-            // Arbre isolé : 1 arbre par SNA (point)
             mesureCell = `<span style="background:#fff3e0; color:#e65100; border-radius:12px; padding:2px 8px; font-size:0.72rem; font-weight:600">🌳 1 arbre</span>`;
         } else if (sna.typeSna === 'A1' || sna.typeSna === 'V3') {
-            // Mare (A1) ou bosquet (V3) : surfaceGraphique est en m² dans le XML PAC
-            const surfAffiche = sna.surfaceGraphique != null
-                ? `${String(sna.surfaceGraphique).replace('.', ',')} m²`
-                : '—';
-            const styleSurf = sna.typeSna === 'A1'
-                ? { bg: '#e3f2fd', text: '#0277bd', icon: '💧' }
-                : { bg: '#c8e6c9', text: '#2e7d32', icon: '🌳' };
+            const surfAffiche = sna.surfaceGraphique != null ? `${String(sna.surfaceGraphique).replace('.', ',')} m²` : '—';
+            const styleSurf = sna.typeSna === 'A1' ? { bg: '#e3f2fd', text: '#0277bd', icon: '💧' } : { bg: '#c8e6c9', text: '#2e7d32', icon: '🌳' };
             mesureCell = `<span style="background:${styleSurf.bg}; color:${styleSurf.text}; border-radius:12px; padding:2px 8px; font-size:0.72rem; font-weight:600">${styleSurf.icon} ${surfAffiche}</span>`;
         }
         
@@ -218,59 +175,31 @@ function updateSNASummary() {
     const totalSurface = snaRows.reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
     const categories = [...new Set(snaRows.map(s => s.categorieSna).filter(Boolean))];
 
-    // Longueur totale haies (V4) et arbres alignes (V2) via intersectionsSnaParcelles
-    const totalLongueurHaies = snaRows
-        .filter(s => s.typeSna === 'V4')
-        .reduce((sum, s) => {
-            const parcelles = s.intersectionsSnaParcelles || [];
-            return sum + parcelles.reduce((ps, p) => ps + (p.longueurIae || 0), 0);
-        }, 0);
-    const totalLongueurV2 = snaRows
-        .filter(s => s.typeSna === 'V2')
-        .reduce((sum, s) => {
-            const parcelles = s.intersectionsSnaParcelles || [];
-            return sum + parcelles.reduce((ps, p) => ps + (p.longueurIae || 0), 0);
-        }, 0);
-
-    // Nombre d'arbres isoles (V1 = 1 arbre par SNA Point)
+    const totalLongueurHaies = snaRows.filter(s => s.typeSna === 'V4').reduce((sum, s) => {
+        const parcelles = s.intersectionsSnaParcelles || [];
+        return sum + parcelles.reduce((ps, p) => ps + (p.longueurIae || 0), 0);
+    }, 0);
+    const totalLongueurV2 = snaRows.filter(s => s.typeSna === 'V2').reduce((sum, s) => {
+        const parcelles = s.intersectionsSnaParcelles || [];
+        return sum + parcelles.reduce((ps, p) => ps + (p.longueurIae || 0), 0);
+    }, 0);
     const nbArbresIsoles = snaRows.filter(s => s.typeSna === 'V1').length;
 
-    const haiesBlock = totalLongueurHaies > 0
-        ? `<div class="eco-kpi"><div class="val">${Math.round(totalLongueurHaies).toLocaleString('fr')} m</div><div class="lbl">Longueur haies (V4)</div></div>`
-        : '';
-    const v2Block = totalLongueurV2 > 0
-        ? `<div class="eco-kpi"><div class="val">${Math.round(totalLongueurV2).toLocaleString('fr')} m</div><div class="lbl">Longueur arbres alignes (V2)</div></div>`
-        : '';
-    const arbresBlock = nbArbresIsoles > 0
-        ? `<div class="eco-kpi"><div class="val">${nbArbresIsoles}</div><div class="lbl">Arbres isoles (V1)</div></div>`
-        : '';
+    const haiesBlock = totalLongueurHaies > 0 ? `<div class="eco-kpi"><div class="val">${Math.round(totalLongueurHaies).toLocaleString('fr')} m</div><div class="lbl">Longueur haies (V4)</div></div>` : '';
+    const v2Block = totalLongueurV2 > 0 ? `<div class="eco-kpi"><div class="val">${Math.round(totalLongueurV2).toLocaleString('fr')} m</div><div class="lbl">Longueur arbres alignes (V2)</div></div>` : '';
+    const arbresBlock = nbArbresIsoles > 0 ? `<div class="eco-kpi"><div class="val">${nbArbresIsoles}</div><div class="lbl">Arbres isoles (V1)</div></div>` : '';
 
-    // Surfaces A1 (mare) et V3 (bosquet)
-    const totalSurfA1 = snaRows.filter(s => s.typeSna === 'A1')
-        .reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
-    const totalSurfV3 = snaRows.filter(s => s.typeSna === 'V3')
-        .reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
+    const totalSurfA1 = snaRows.filter(s => s.typeSna === 'A1').reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
+    const totalSurfV3 = snaRows.filter(s => s.typeSna === 'V3').reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
+    const totalMlA4 = snaRows.filter(s => s.typeSna === 'A4').reduce((sum, s) => sum + (s.intersectionsSnaParcelles || []).reduce((ps, p) => ps + (p.longueurIae || 0), 0), 0);
+    const totalMlA7 = snaRows.filter(s => s.typeSna === 'A7').reduce((sum, s) => sum + (s.intersectionsSnaParcelles || []).reduce((ps, p) => ps + (p.longueurIae || 0), 0), 0);
 
-    // Longueur A4 (fossé non maçonné) et A7 (mur traditionnel)
-    const totalMlA4 = snaRows.filter(s => s.typeSna === 'A4')
-        .reduce((sum, s) => sum + (s.intersectionsSnaParcelles || [])
-            .reduce((ps, p) => ps + (p.longueurIae || 0), 0), 0);
-    const totalMlA7 = snaRows.filter(s => s.typeSna === 'A7')
-        .reduce((sum, s) => sum + (s.intersectionsSnaParcelles || [])
-            .reduce((ps, p) => ps + (p.longueurIae || 0), 0), 0);
+    const a1Block = totalSurfA1 > 0 ? `<div class="eco-kpi"><div class="val">${totalSurfA1.toFixed(2).replace('.', ',')} m²</div><div class="lbl">💧 Surface mares (A1)</div></div>` : '';
+    const v3Block = totalSurfV3 > 0 ? `<div class="eco-kpi"><div class="val">${totalSurfV3.toFixed(2).replace('.', ',')} m²</div><div class="lbl">🌳 Surface bosquets (V3)</div></div>` : '';
+    const a4Block = totalMlA4 > 0 ? `<div class="eco-kpi"><div class="val">${Math.round(totalMlA4).toLocaleString('fr')} m</div><div class="lbl">〰️ Fossés non maç. (A4)</div></div>` : '';
+    const a7Block = totalMlA7 > 0 ? `<div class="eco-kpi"><div class="val">${Math.round(totalMlA7).toLocaleString('fr')} m</div><div class="lbl">🪨 Murs trad. (A7)</div></div>` : '';
 
-    const a1Block = totalSurfA1 > 0
-        ? `<div class="eco-kpi"><div class="val">${totalSurfA1.toFixed(2).replace('.', ',')} m²</div><div class="lbl">💧 Surface mares (A1)</div></div>` : '';
-    const v3Block = totalSurfV3 > 0
-        ? `<div class="eco-kpi"><div class="val">${totalSurfV3.toFixed(2).replace('.', ',')} m²</div><div class="lbl">🌳 Surface bosquets (V3)</div></div>` : '';
-    const a4Block = totalMlA4 > 0
-        ? `<div class="eco-kpi"><div class="val">${Math.round(totalMlA4).toLocaleString('fr')} m</div><div class="lbl">〰️ Fossés non maç. (A4)</div></div>` : '';
-    const a7Block = totalMlA7 > 0
-        ? `<div class="eco-kpi"><div class="val">${Math.round(totalMlA7).toLocaleString('fr')} m</div><div class="lbl">🪨 Murs trad. (A7)</div></div>` : '';
-
-    // Total IAE toutes SNA confondues
     const totalIAEm2 = snaRows.reduce((sum, s) => sum + (calcIAE(s) || 0), 0);
-    const totalIAEha = (totalIAEm2 / 10000).toFixed(4).replace('.', ',');
 
     summaryDiv.innerHTML = `
         <div class="eco-kpi"><div class="val">${snaRows.length}</div><div class="lbl">SNA totales</div></div>
@@ -337,8 +266,12 @@ export function sortSNA(col) {
         return sortDirSNA * String(valA).localeCompare(String(valB), 'fr');
     });
     
+    renderSNA();
+}
 
-// Ajoutez cette fonction dans sna.js, après la fonction sortSNA()
+// ===================================================
+// INITIALISATION DE L'EN-TÊTE DU TABLEAU SNA
+// ===================================================
 export function initSNATableHeader() {
     const thead = document.getElementById('thead-sna');
     if (!thead) return;
@@ -354,7 +287,7 @@ export function initSNATableHeader() {
             <th class="sortable" data-col="longueur">Mesure (surf. / long.) <span class="sort-indicator"></span></th>
             <th class="sortable" data-col="iae">Valeur IAE <span class="sort-indicator"></span></th>
             <th>Géométrie</th>
-        </tr>
+        </table>
     `;
     
     // Réattacher les événements de tri
@@ -364,8 +297,4 @@ export function initSNATableHeader() {
             if (col) sortSNA(col);
         });
     });
-
-
-
-    renderSNA();
 }
