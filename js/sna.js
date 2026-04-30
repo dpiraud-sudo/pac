@@ -337,5 +337,35 @@ export function sortSNA(col) {
         return sortDirSNA * String(valA).localeCompare(String(valB), 'fr');
     });
     
+
+// Ajoutez cette fonction dans sna.js, après la fonction sortSNA()
+export function initSNATableHeader() {
+    const thead = document.getElementById('thead-sna');
+    if (!thead) return;
+    
+    thead.innerHTML = `
+        <tr>
+            <th class="sortable" data-col="numero">N° SNA <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="categorie">Catégorie <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="type">Type SNA <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="surface_ha">Surface (m²) <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="ilot">Îlots <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="parcelle">Parcelle associée <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="longueur">Mesure (surf. / long.) <span class="sort-indicator"></span></th>
+            <th class="sortable" data-col="iae">Valeur IAE <span class="sort-indicator"></span></th>
+            <th>Géométrie</th>
+        </tr>
+    `;
+    
+    // Réattacher les événements de tri
+    document.querySelectorAll('#thead-sna .sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = th.dataset.col;
+            if (col) sortSNA(col);
+        });
+    });
+
+
+
     renderSNA();
 }
