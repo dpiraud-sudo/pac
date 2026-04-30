@@ -127,7 +127,7 @@ export function renderSNA() {
         else if (sna.geomPoint) geomType = '📍 Point';
         
         const ilotsAffiches = sna.ilots && sna.ilots.length ? sna.ilots.join(', ') : '—';
-        const surfaceHa = sna.surfaceGraphique ? sna.surfaceGraphique.toFixed(2).replace('.', ',') : '0,00';
+        const surfaceM2 = sna.surfaceGraphique != null ? sna.surfaceGraphique.toFixed(2).replace('.', ',') : '0,00';
 
         // Valeur IAE (m² équivalent)
         const iaeM2 = calcIAE(sna);
@@ -180,7 +180,7 @@ export function renderSNA() {
                     </span>
                 </td>
                 <td>${typeLabel} <span style="color:#888; font-size:0.7rem">(${escHtml(sna.typeSna)})</span></td>
-                <td style="text-align:right; font-weight:700; color:#1f5e2c">${surfaceHa} ha</td>
+                <td style="text-align:right; font-weight:700; color:#1f5e2c">${surfaceM2} m²</td>
                 <td>${ilotsAffiches}</td>
                 <td>${escHtml(sna.parcelleAssociee || '—')}</td>
                 <td>${mesureCell}</td>
@@ -256,7 +256,7 @@ function updateSNASummary() {
 
     summaryDiv.innerHTML = `
         <div class="eco-kpi"><div class="val">${snaRows.length}</div><div class="lbl">SNA totales</div></div>
-        <div class="eco-kpi"><div class="val">${totalSurface.toFixed(2).replace('.', ',')} ha</div><div class="lbl">Surface totale SNA</div></div>
+        <div class="eco-kpi"><div class="val">${totalSurface.toFixed(2).replace('.', ',')} m²</div><div class="lbl">Surface totale SNA</div></div>
         <div class="eco-kpi"><div class="val">${categories.length}</div><div class="lbl">Categories</div></div>
         ${haiesBlock}${v2Block}${arbresBlock}${a1Block}${v3Block}${a4Block}${a7Block}
         <div class="eco-kpi" style="border-left:3px solid #6a1b9a"><div class="val" style="color:#6a1b9a">${Math.round(totalIAEm2).toLocaleString('fr')} m²</div><div class="lbl">Surface IAE totale</div></div>
