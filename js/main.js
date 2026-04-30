@@ -16,7 +16,7 @@ import { setDocN, renderComparaison, resetComparaison, setIlotsN } from './compa
 import { renderEligibilite } from './eligibilite.js';
 import { setBCAE7Data, renderBCAE7 } from './bcae7.js';
 import { setCabData, renderCab } from './cab.js';
-import { initSNATableHeader, renderSNA, setSNAdata } from './sna.js';
+
 
 
 // ===================================================
