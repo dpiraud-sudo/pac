@@ -242,6 +242,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tabId) btn.addEventListener('click', () => switchTab(tabId));
   });
 
+
+}
+
 // Ajoutez cette fonction dans sna.js, après la fonction sortSNA()
 export function initSNATableHeader() {
     const thead = document.getElementById('thead-sna');
@@ -268,8 +271,5 @@ export function initSNATableHeader() {
             if (col) sortSNA(col);
         });
     });
-}
-
-
 
 });
