@@ -16,6 +16,8 @@ import { setDocN, renderComparaison, resetComparaison, setIlotsN } from './compa
 import { renderEligibilite } from './eligibilite.js';
 import { setBCAE7Data, renderBCAE7 } from './bcae7.js';
 import { setCabData, renderCab } from './cab.js';
+import { initSNATableHeader, renderSNA, setSNAdata } from './sna.js';
+
 
 // ===================================================
 // VARIABLES GLOBALES
@@ -42,7 +44,7 @@ function renderApp(data) {
   snaList = data.snaGeo || [];
   console.log('SNA reçus dans main.js :', snaList);
   setSNAdata(snaList);
-
+  initSNATableHeader();
   setData(allRows);
   setEcoData(allRows);
   setMaecData(allMaecRows);
