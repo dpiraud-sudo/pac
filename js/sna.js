@@ -44,9 +44,13 @@ const TYPE_LABELS = {
 
 // Barèmes IAE (m² équivalent par unité)
 const IAE_BAREME = {
-    V1: 30,   // 1 arbre isolé = 30 m²
-    V2: 10,   // 1 ml d'arbres alignés = 10 m²
-    V4: 20    // 1 ml de haie = 20 m²
+    V1: 30,   // 1 arbre isolé      = 30 m² IAE
+    V2: 10,   // 1 ml arbres alignés = 10 m² IAE
+    V4: 20,   // 1 ml de haie        = 20 m² IAE
+    A1: 1.5,  // 1 m² de mare        = 1,5 m² IAE
+    V3: 1.5,  // 1 m² de bosquet     = 1,5 m² IAE
+    A4: 10,   // 1 ml de fossé non maçonné = 10 m² IAE
+    A7: 1     // 1 ml de mur traditionnel  = 1 m² IAE
 };
 
 /**
@@ -57,13 +61,24 @@ const IAE_BAREME = {
  * Autres : null (pas de valeur IAE définie)
  */
 function calcIAE(sna) {
+    // Arbres isolés : forfait 30 m² IAE par arbre
     if (sna.typeSna === 'V1') return 30;
-    if (sna.typeSna === 'V2' || sna.typeSna === 'V4') {
+
+    // Éléments linéaires : Σ longueur-iae × barème
+    if (sna.typeSna === 'V2' || sna.typeSna === 'V4' ||
+        sna.typeSna === 'A4' || sna.typeSna === 'A7') {
         const totalMl = (sna.intersectionsSnaParcelles || [])
             .reduce((sum, p) => sum + (p.longueurIae || 0), 0);
         if (totalMl === 0) return null;
         return totalMl * IAE_BAREME[sna.typeSna];
     }
+
+    // Éléments surfaciques : surfaceGraphique (m²) × barème
+    if (sna.typeSna === 'A1' || sna.typeSna === 'V3') {
+        if (!sna.surfaceGraphique) return null;
+        return sna.surfaceGraphique * IAE_BAREME[sna.typeSna];
+    }
+
     return null;
 }
 
@@ -135,9 +150,12 @@ export function renderSNA() {
         if (iaeM2 != null) {
             const iaeColor = sna.typeSna === 'V1' ? { bg: '#fff3e0', text: '#e65100' }
                            : sna.typeSna === 'V2' ? { bg: '#e3f2fd', text: '#0277bd' }
+                           : sna.typeSna === 'A1' ? { bg: '#e1f5fe', text: '#01579b' }
+                           : sna.typeSna === 'V3' ? { bg: '#c8e6c9', text: '#1b5e20' }
+                           : sna.typeSna === 'A4' ? { bg: '#e0f2f1', text: '#004d40' }
+                           : sna.typeSna === 'A7' ? { bg: '#fce4ec', text: '#880e4f' }
                            : { bg: '#f3e5f5', text: '#6a1b9a' }; // V4
-            const label = sna.typeSna === 'V1' ? '30 m²'
-                        : `${iaeM2 % 1 === 0 ? iaeM2 : iaeM2.toFixed(1)} m²`;
+            const label = `${iaeM2 % 1 === 0 ? iaeM2 : iaeM2.toFixed(1)} m²`;
             iaeCell = `<span style="background:${iaeColor.bg}; color:${iaeColor.text}; border-radius:12px; padding:3px 10px; font-size:0.78rem; font-weight:700">${label}</span>`;
         }
 
