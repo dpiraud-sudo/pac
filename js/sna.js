@@ -225,8 +225,9 @@ function updateSNASummary() {
     if (iaeHaiesTA_m2 > 0) {
         const sauTAm2 = getSAUta() * 10000; // ha → m²
         const pctHaiesTA = sauTAm2 > 0 ? (iaeHaiesTA_m2 / sauTAm2) * 100 : null;
+        // Seuil = 6% pour obtenir le bonus haie
         const pctHaiesTAStr = pctHaiesTA !== null
-            ? `<span style="margin-left:6px; font-size:0.85rem; color:${pctHaiesTA >= 4 ? '#2e7d32' : '#b71c1c'}; font-weight:700">(${pctHaiesTA.toFixed(2).replace('.', ',')} % SAU TA)</span>`
+            ? `<span style="margin-left:6px; font-size:0.85rem; color:${pctHaiesTA >= 6 ? '#2e7d32' : '#b71c1c'}; font-weight:700">(${pctHaiesTA.toFixed(2).replace('.', ',')} % SAU TA)</span>`
             : '';
         iaeHaiesTABlock = `
             <div class="eco-kpi" style="border-left:3px solid #2e7d32">
