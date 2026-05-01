@@ -1,6 +1,7 @@
 // js/sna.js - Version complète avec initSNATableHeader()
 import { formatHa, escHtml } from './utils.js';
 import { getSAUadmissible } from './ecoregime.js';
+import { getAllRows } from './tables.js';
 
 let snaRows = [];
 let filteredSNA = [];
@@ -202,6 +203,46 @@ function updateSNASummary() {
 
     const totalIAEm2 = snaRows.reduce((sum, s) => sum + (calcIAE(s) || 0), 0);
 
+    // ── IAE haies (V4) sur Terres Arables uniquement ──────────────────────────
+    // On croise intersectionsSnaParcelles (numeroIlot + numeroParcelle)
+    // avec les parcelles de l'onglet parcelles (surface_cat === 'TA')
+    const parcellesRows = getAllRows();
+    // Index rapide : "ilot_num|num_parcelle" → surface_cat
+    const parcellesCatIndex = new Map(
+        parcellesRows.map(r => [`${r.ilot_num}|${r.num_parcelle}`, r.surface_cat || ''])
+    );
+
+    let iaeHaiesTA_m2 = 0;
+    let mlHaiesTA = 0;
+    snaRows.filter(s => s.typeSna === 'V4').forEach(sna => {
+        (sna.intersectionsSnaParcelles || []).forEach(p => {
+            const key = `${p.numeroIlot}|${p.numeroParcelle}`;
+            const cat = parcellesCatIndex.get(key) || '';
+            // Inclure TA et les CP gérées comme TA (surface_cat peut être 'TA' ou 'CP' avec eco spécial)
+            // On se base sur surface_cat === 'TA' comme affiché dans la colonne "Surf. agri."
+            if (cat === 'TA') {
+                const lon = p.longueurIae || 0;
+                mlHaiesTA += lon;
+                iaeHaiesTA_m2 += lon * 20; // barème V4 = 20 m²/ml
+            }
+        });
+    });
+
+    // % IAE haies TA / SAU TA admissible
+    // On récupère la SAU TA depuis ecoregime via une fonction dédiée (surfTypeTotals.TA)
+    // Pour l'instant on utilise getSAUadmissible() total, mais on peut affiner si getSAUTA() est exposé
+    let iaeHaiesTABlock = '';
+    if (iaeHaiesTA_m2 > 0) {
+        iaeHaiesTABlock = `
+            <div class="eco-kpi" style="border-left:3px solid #2e7d32">
+                <div class="val" style="color:#2e7d32; font-size:1.1rem">
+                    ${Math.round(iaeHaiesTA_m2).toLocaleString('fr')} m²
+                    <span style="font-size:0.75rem; color:#557055; font-weight:500; display:block; margin-top:2px">(${Math.round(mlHaiesTA).toLocaleString('fr')} ml)</span>
+                </div>
+                <div class="lbl">🌾 IAE haies sur TA</div>
+            </div>`;
+    }
+
     // Calcul % IAE / SAU admissible (en ha depuis ecoregime.js → converti en m²)
     let pctIAEBlock = '';
     const sauHa = getSAUadmissible();
@@ -217,6 +258,7 @@ function updateSNASummary() {
         <div class="eco-kpi"><div class="val">${totalSurface.toFixed(2).replace('.', ',')} m²</div><div class="lbl">Surface totale SNA</div></div>
         <div class="eco-kpi"><div class="val">${categories.length}</div><div class="lbl">Categories</div></div>
         ${haiesBlock}${v2Block}${arbresBlock}${a1Block}${v3Block}${a4Block}${a7Block}
+        ${iaeHaiesTABlock}
         <div class="eco-kpi" style="border-left:3px solid #6a1b9a">
             <div class="val" style="color:#6a1b9a">
                 ${Math.round(totalIAEm2).toLocaleString('fr')} m²${pctIAEBlock}
