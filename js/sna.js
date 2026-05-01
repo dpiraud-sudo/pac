@@ -46,7 +46,7 @@ function calcIAE(sna) {
     }
     if (sna.typeSna === 'A1' || sna.typeSna === 'V3') {
         if (!sna.surfaceGraphique) return null;
-        return sna.surfaceGraphique * IAE_BAREME[sna.typeSna];
+        return (sna.surfaceGraphique * 100) * IAE_BAREME[sna.typeSna];
     }
     return null;
 }
@@ -108,7 +108,7 @@ export function renderSNA() {
         else if (sna.geomPoint) geomType = '📍 Point';
         
         const ilotsAffiches = sna.ilots && sna.ilots.length ? sna.ilots.join(', ') : '—';
-        const surfaceM2 = sna.surfaceGraphique != null ? sna.surfaceGraphique.toFixed(2).replace('.', ',') : '0,00';
+        const surfaceM2 = sna.surfaceGraphique != null ? (sna.surfaceGraphique * 100).toFixed(2).replace('.', ',') : '0,00';
 
         const iaeM2 = calcIAE(sna);
         let iaeCell = '—';
@@ -141,7 +141,7 @@ export function renderSNA() {
         } else if (sna.typeSna === 'V1') {
             mesureCell = `<span style="background:#fff3e0; color:#e65100; border-radius:12px; padding:2px 8px; font-size:0.72rem; font-weight:600">🌳 1 arbre</span>`;
         } else if (sna.typeSna === 'A1' || sna.typeSna === 'V3') {
-            const surfAffiche = sna.surfaceGraphique != null ? `${String(sna.surfaceGraphique).replace('.', ',')} m²` : '—';
+            const surfAffiche = sna.surfaceGraphique != null ? `${(sna.surfaceGraphique * 100).toFixed(2).replace('.', ',')} m²` : '—';
             const styleSurf = sna.typeSna === 'A1' ? { bg: '#e3f2fd', text: '#0277bd', icon: '💧' } : { bg: '#c8e6c9', text: '#2e7d32', icon: '🌳' };
             mesureCell = `<span style="background:${styleSurf.bg}; color:${styleSurf.text}; border-radius:12px; padding:2px 8px; font-size:0.72rem; font-weight:600">${styleSurf.icon} ${surfAffiche}</span>`;
         }
@@ -172,7 +172,7 @@ function updateSNASummary() {
     const summaryDiv = document.getElementById('sna-summary');
     if (!summaryDiv) return;
     
-    const totalSurface = snaRows.reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
+    const totalSurface = snaRows.reduce((sum, s) => sum + ((s.surfaceGraphique || 0) * 100), 0);
     const categories = [...new Set(snaRows.map(s => s.categorieSna).filter(Boolean))];
 
     const totalLongueurHaies = snaRows.filter(s => s.typeSna === 'V4').reduce((sum, s) => {
@@ -189,8 +189,8 @@ function updateSNASummary() {
     const v2Block = totalLongueurV2 > 0 ? `<div class="eco-kpi"><div class="val">${Math.round(totalLongueurV2).toLocaleString('fr')} m</div><div class="lbl">Longueur arbres alignes (V2)</div></div>` : '';
     const arbresBlock = nbArbresIsoles > 0 ? `<div class="eco-kpi"><div class="val">${nbArbresIsoles}</div><div class="lbl">Arbres isoles (V1)</div></div>` : '';
 
-    const totalSurfA1 = snaRows.filter(s => s.typeSna === 'A1').reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
-    const totalSurfV3 = snaRows.filter(s => s.typeSna === 'V3').reduce((sum, s) => sum + (s.surfaceGraphique || 0), 0);
+    const totalSurfA1 = snaRows.filter(s => s.typeSna === 'A1').reduce((sum, s) => sum + ((s.surfaceGraphique || 0) * 100), 0);
+    const totalSurfV3 = snaRows.filter(s => s.typeSna === 'V3').reduce((sum, s) => sum + ((s.surfaceGraphique || 0) * 100), 0);
     const totalMlA4 = snaRows.filter(s => s.typeSna === 'A4').reduce((sum, s) => sum + (s.intersectionsSnaParcelles || []).reduce((ps, p) => ps + (p.longueurIae || 0), 0), 0);
     const totalMlA7 = snaRows.filter(s => s.typeSna === 'A7').reduce((sum, s) => sum + (s.intersectionsSnaParcelles || []).reduce((ps, p) => ps + (p.longueurIae || 0), 0), 0);
 
