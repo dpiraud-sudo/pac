@@ -1,5 +1,6 @@
 // js/sna.js - Version complète avec initSNATableHeader()
 import { formatHa, escHtml } from './utils.js';
+import { getSAUadmissible } from './ecoregime.js';
 
 let snaRows = [];
 let filteredSNA = [];
@@ -201,22 +202,14 @@ function updateSNASummary() {
 
     const totalIAEm2 = snaRows.reduce((sum, s) => sum + (calcIAE(s) || 0), 0);
 
-    // Calcul du % IAE / SAU admissible
-    // La SAU admissible est lue depuis un élément DOM (data-sau-ha ou id="sau-admissible")
-    // Elle est exprimée en ha, on la convertit en m² pour comparer avec totalIAEm2
+    // Calcul % IAE / SAU admissible (en ha depuis ecoregime.js → converti en m²)
     let pctIAEBlock = '';
-    const sauEl = document.getElementById('sau-admissible') || document.querySelector('[data-sau-ha]');
-    if (sauEl) {
-        const sauHa = parseFloat(
-            (sauEl.dataset.sauHa !== undefined ? sauEl.dataset.sauHa : sauEl.textContent)
-                .replace(',', '.')
-        );
-        if (!isNaN(sauHa) && sauHa > 0) {
-            const sauM2 = sauHa * 10000; // 1 ha = 10 000 m²
-            const pctIAE = (totalIAEm2 / sauM2) * 100;
-            const pctColor = pctIAE >= 4 ? '#2e7d32' : '#b71c1c'; // vert si ≥ 4 % (seuil SNA/IAE)
-            pctIAEBlock = `<span style="margin-left:8px; font-size:0.85rem; color:${pctColor}; font-weight:700">(${pctIAE.toFixed(2).replace('.', ',')} % SAU)</span>`;
-        }
+    const sauHa = getSAUadmissible();
+    if (sauHa > 0) {
+        const sauM2 = sauHa * 10000; // 1 ha = 10 000 m²
+        const pctIAE = (totalIAEm2 / sauM2) * 100;
+        const pctColor = pctIAE >= 4 ? '#2e7d32' : '#b71c1c';
+        pctIAEBlock = `<span style="margin-left:8px; font-size:0.85rem; color:${pctColor}; font-weight:700">(${pctIAE.toFixed(2).replace('.', ',')} % SAU)</span>`;
     }
 
     summaryDiv.innerHTML = `
