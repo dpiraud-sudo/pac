@@ -2,7 +2,7 @@
 import { formatHa, escHtml } from './utils.js';
 import { getSAUadmissible, getSAUta } from './ecoregime.js';
 import { getAllRows } from './tables.js';
-
+import { getSAUadmissible } from './ecoregime.js';
 
 let snaRows = [];
 let filteredSNA = [];
@@ -178,15 +178,39 @@ function updateSNASummary() {
     const totalSurface = snaRows.reduce((sum, s) => sum + ((s.surfaceGraphique || 0) * 100), 0);
     const categories = [...new Set(snaRows.map(s => s.categorieSna).filter(Boolean))];
 
+    // --- Calcul des longueurs totales ---
     const totalLongueurHaies = snaRows.filter(s => s.typeSna === 'V4').reduce((sum, s) => {
         const parcelles = s.intersectionsSnaParcelles || [];
         return sum + parcelles.reduce((ps, p) => ps + (p.longueurIae || 0), 0);
     }, 0);
+    
     const totalLongueurV2 = snaRows.filter(s => s.typeSna === 'V2').reduce((sum, s) => {
         const parcelles = s.intersectionsSnaParcelles || [];
         return sum + parcelles.reduce((ps, p) => ps + (p.longueurIae || 0), 0);
     }, 0);
+    
     const nbArbresIsoles = snaRows.filter(s => s.typeSna === 'V1').length;
+
+    // --- Calcul du % des haies par rapport à la SAU admissible ---
+    const sauHa = getSAUadmissible();
+    let pctHaiesSAUBlock = '';
+    if (sauHa > 0 && totalLongueurHaies > 0) {
+        // Conversion : 1 ha = 10 000 m², mais on compare des m linéaires de haies à des ha
+        // Le ratio s'exprime en m/ha
+        const mlPerHa = totalLongueurHaies / sauHa;
+        const pctColor = mlPerHa >= 10 ? '#2e7d32' : '#b71c1c'; // Seuil indicatif à 10 m/ha
+        
+        pctHaiesSAUBlock = `
+            <div class="eco-kpi" style="border-left:3px solid #2e7d32">
+                <div class="val" style="color:${pctColor}">
+                    ${Math.round(totalLongueurHaies).toLocaleString('fr')} m
+                    <span style="margin-left:6px; font-size:0.85rem; color:${pctColor}; font-weight:700">
+                        (${mlPerHa.toFixed(1).replace('.', ',')} m/ha)
+                    </span>
+                </div>
+                <div class="lbl">🌿 Longueur totale haies (V4) / SAU admissible</div>
+            </div>`;
+    }
 
     const haiesBlock = totalLongueurHaies > 0 ? `<div class="eco-kpi"><div class="val">${Math.round(totalLongueurHaies).toLocaleString('fr')} m</div><div class="lbl">Longueur haies (V4)</div></div>` : '';
     const v2Block = totalLongueurV2 > 0 ? `<div class="eco-kpi"><div class="val">${Math.round(totalLongueurV2).toLocaleString('fr')} m</div><div class="lbl">Longueur arbres alignes (V2)</div></div>` : '';
@@ -241,7 +265,6 @@ function updateSNASummary() {
 
     // ── % IAE total / SAU admissible ─────────────────────────────────────────
     let pctIAEBlock = '';
-    const sauHa = getSAUadmissible();
     if (sauHa > 0) {
         const sauM2 = sauHa * 10000; // 1 ha = 10 000 m²
         const pctIAE = (totalIAEm2 / sauM2) * 100;
@@ -254,6 +277,7 @@ function updateSNASummary() {
         <div class="eco-kpi"><div class="val">${totalSurface.toFixed(2).replace('.', ',')} m²</div><div class="lbl">Surface totale SNA</div></div>
         <div class="eco-kpi"><div class="val">${categories.length}</div><div class="lbl">Categories</div></div>
         ${haiesBlock}${v2Block}${arbresBlock}${a1Block}${v3Block}${a4Block}${a7Block}
+        ${pctHaiesSAUBlock}
         ${iaeHaiesTABlock}
         <div class="eco-kpi" style="border-left:3px solid #6a1b9a">
             <div class="val" style="color:#6a1b9a">
