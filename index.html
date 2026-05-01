@@ -528,15 +528,17 @@
     </div>
     <div class="table-wrap">
       <table id="table-sna">
-        <thead>
+        <thead id="thead-sna">
           <tr>
             <th onclick="window.sortSNA?.('numero')" data-col="numero">N° SNA ↕</th>
             <th onclick="window.sortSNA?.('categorie')" data-col="categorie">Catégorie ↕</th>
             <th onclick="window.sortSNA?.('type')" data-col="type">Type ↕</th>
-            <th onclick="window.sortSNA?.('surface_ha')" data-col="surface_ha">Surface (ha) ↕</th>
-            <th onclick="window.sortSNA?.('ilot')" data-col="ilot">Îlot associé ↕</th>
+            <th onclick="window.sortSNA?.('surface_ha')" data-col="surface_ha" style="text-align:right">Surface (m²) ↕</th>
+            <th onclick="window.sortSNA?.('ilot')" data-col="ilot">Îlots ↕</th>
             <th onclick="window.sortSNA?.('parcelle')" data-col="parcelle">Parcelle associée ↕</th>
-            <th>Géométrie</th>
+            <th onclick="window.sortSNA?.('longueur')" data-col="longueur">Mesure (surf. / long.) ↕</th>
+            <th onclick="window.sortSNA?.('iae')" data-col="iae" style="text-align:right">Valeur IAE ↕</th>
+            <th style="text-align:center">Géométrie</th>
           </tr>
         </thead>
         <tbody id="tbody-sna"></tbody>
