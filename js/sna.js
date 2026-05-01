@@ -287,7 +287,7 @@ export function initSNATableHeader() {
             <th class="sortable" data-col="longueur">Mesure (surf. / long.) <span class="sort-indicator"></span></th>
             <th class="sortable" style="text-align:right" data-col="iae">Valeur IAE <span class="sort-indicator"></span></th>
             <th style="text-align:center">Géométrie</th>
-        </table>
+        </tr>
     `;
     
     // Réattacher les événements de tri
