@@ -2,7 +2,7 @@
 import { formatHa, escHtml } from './utils.js';
 import { getSAUadmissible, getSAUta } from './ecoregime.js';
 import { getAllRows } from './tables.js';
-import { getSAUadmissible } from './ecoregime.js';
+
 
 let snaRows = [];
 let filteredSNA = [];
