@@ -2,8 +2,10 @@ import { sbadge, formatHa, escHtml } from './utils.js';
 
 let allRows = [];
 let sauAdmissibleHa = 0;
+let sauTAha = 0;
 
 export function getSAUadmissible() { return sauAdmissibleHa; }
+export function getSAUta() { return sauTAha; }
 
 export function setEcoData(rows) {
   allRows = rows;
@@ -44,7 +46,8 @@ export function renderEcoregime() {
   }
   
   const surfTypeTotal = surfTypeTotals.TA + surfTypeTotals.PP + surfTypeTotals.CP;
-  sauAdmissibleHa = surfTypeTotal; // exposé via getSAUadmissible()
+  sauAdmissibleHa = surfTypeTotal;
+  sauTAha = surfTypeTotals.TA; // exposé via getSAUta()
   const surfTypeTotalTA = surfTypeTotals.TA;
   
   const surfTypeRows = [

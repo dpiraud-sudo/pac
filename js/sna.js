@@ -1,7 +1,8 @@
 // js/sna.js - Version complète avec initSNATableHeader()
 import { formatHa, escHtml } from './utils.js';
-import { getSAUadmissible } from './ecoregime.js';
+import { getSAUadmissible, getSAUta } from './ecoregime.js';
 import { getAllRows } from './tables.js';
+import { getSAUadmissible } from './ecoregime.js';
 
 let snaRows = [];
 let filteredSNA = [];
@@ -204,23 +205,15 @@ function updateSNASummary() {
     const totalIAEm2 = snaRows.reduce((sum, s) => sum + (calcIAE(s) || 0), 0);
 
     // ── IAE haies (V4) sur Terres Arables uniquement ──────────────────────────
-    // On croise intersectionsSnaParcelles (numeroIlot + numeroParcelle)
-    // avec les parcelles de l'onglet parcelles (surface_cat === 'TA')
     const parcellesRows = getAllRows();
-    // Index rapide : "ilot_num|num_parcelle" → surface_cat
     const parcellesCatIndex = new Map(
         parcellesRows.map(r => [`${r.ilot_num}|${r.num_parcelle}`, r.surface_cat || ''])
     );
-
     let iaeHaiesTA_m2 = 0;
     let mlHaiesTA = 0;
     snaRows.filter(s => s.typeSna === 'V4').forEach(sna => {
         (sna.intersectionsSnaParcelles || []).forEach(p => {
-            const key = `${p.numeroIlot}|${p.numeroParcelle}`;
-            const cat = parcellesCatIndex.get(key) || '';
-            // Inclure TA et les CP gérées comme TA (surface_cat peut être 'TA' ou 'CP' avec eco spécial)
-            // On se base sur surface_cat === 'TA' comme affiché dans la colonne "Surf. agri."
-            if (cat === 'TA') {
+            if ((parcellesCatIndex.get(`${p.numeroIlot}|${p.numeroParcelle}`) || '') === 'TA') {
                 const lon = p.longueurIae || 0;
                 mlHaiesTA += lon;
                 iaeHaiesTA_m2 += lon * 20; // barème V4 = 20 m²/ml
@@ -228,22 +221,24 @@ function updateSNASummary() {
         });
     });
 
-    // % IAE haies TA / SAU TA admissible
-    // On récupère la SAU TA depuis ecoregime via une fonction dédiée (surfTypeTotals.TA)
-    // Pour l'instant on utilise getSAUadmissible() total, mais on peut affiner si getSAUTA() est exposé
     let iaeHaiesTABlock = '';
     if (iaeHaiesTA_m2 > 0) {
+        const sauTAm2 = getSAUta() * 10000; // ha → m²
+        const pctHaiesTA = sauTAm2 > 0 ? (iaeHaiesTA_m2 / sauTAm2) * 100 : null;
+        const pctHaiesTAStr = pctHaiesTA !== null
+            ? `<span style="margin-left:6px; font-size:0.85rem; color:${pctHaiesTA >= 4 ? '#2e7d32' : '#b71c1c'}; font-weight:700">(${pctHaiesTA.toFixed(2).replace('.', ',')} % SAU TA)</span>`
+            : '';
         iaeHaiesTABlock = `
             <div class="eco-kpi" style="border-left:3px solid #2e7d32">
                 <div class="val" style="color:#2e7d32; font-size:1.1rem">
-                    ${Math.round(iaeHaiesTA_m2).toLocaleString('fr')} m²
+                    ${Math.round(iaeHaiesTA_m2).toLocaleString('fr')} m²${pctHaiesTAStr}
                     <span style="font-size:0.75rem; color:#557055; font-weight:500; display:block; margin-top:2px">(${Math.round(mlHaiesTA).toLocaleString('fr')} ml)</span>
                 </div>
                 <div class="lbl">🌾 IAE haies sur TA</div>
             </div>`;
     }
 
-    // Calcul % IAE / SAU admissible (en ha depuis ecoregime.js → converti en m²)
+    // ── % IAE total / SAU admissible ─────────────────────────────────────────
     let pctIAEBlock = '';
     const sauHa = getSAUadmissible();
     if (sauHa > 0) {
