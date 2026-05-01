@@ -281,12 +281,12 @@ export function initSNATableHeader() {
             <th class="sortable" data-col="numero">N° SNA <span class="sort-indicator"></span></th>
             <th class="sortable" data-col="categorie">Catégorie <span class="sort-indicator"></span></th>
             <th class="sortable" data-col="type">Type SNA <span class="sort-indicator"></span></th>
-            <th class="sortable" data-col="surface_ha">Surface (m²) <span class="sort-indicator"></span></th>
+            <th class="sortable" style="text-align:right" data-col="surface_ha">Surface (m²) <span class="sort-indicator"></span></th>
             <th class="sortable" data-col="ilot">Îlots <span class="sort-indicator"></span></th>
             <th class="sortable" data-col="parcelle">Parcelle associée <span class="sort-indicator"></span></th>
             <th class="sortable" data-col="longueur">Mesure (surf. / long.) <span class="sort-indicator"></span></th>
-            <th class="sortable" data-col="iae">Valeur IAE <span class="sort-indicator"></span></th>
-            <th>Géométrie</th>
+            <th class="sortable" style="text-align:right" data-col="iae">Valeur IAE <span class="sort-indicator"></span></th>
+            <th style="text-align:center">Géométrie</th>
         </table>
     `;
     
