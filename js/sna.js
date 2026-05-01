@@ -201,12 +201,35 @@ function updateSNASummary() {
 
     const totalIAEm2 = snaRows.reduce((sum, s) => sum + (calcIAE(s) || 0), 0);
 
+    // Calcul du % IAE / SAU admissible
+    // La SAU admissible est lue depuis un élément DOM (data-sau-ha ou id="sau-admissible")
+    // Elle est exprimée en ha, on la convertit en m² pour comparer avec totalIAEm2
+    let pctIAEBlock = '';
+    const sauEl = document.getElementById('sau-admissible') || document.querySelector('[data-sau-ha]');
+    if (sauEl) {
+        const sauHa = parseFloat(
+            (sauEl.dataset.sauHa !== undefined ? sauEl.dataset.sauHa : sauEl.textContent)
+                .replace(',', '.')
+        );
+        if (!isNaN(sauHa) && sauHa > 0) {
+            const sauM2 = sauHa * 10000; // 1 ha = 10 000 m²
+            const pctIAE = (totalIAEm2 / sauM2) * 100;
+            const pctColor = pctIAE >= 4 ? '#2e7d32' : '#b71c1c'; // vert si ≥ 4 % (seuil SNA/IAE)
+            pctIAEBlock = `<span style="margin-left:8px; font-size:0.85rem; color:${pctColor}; font-weight:700">(${pctIAE.toFixed(2).replace('.', ',')} % SAU)</span>`;
+        }
+    }
+
     summaryDiv.innerHTML = `
         <div class="eco-kpi"><div class="val">${snaRows.length}</div><div class="lbl">SNA totales</div></div>
         <div class="eco-kpi"><div class="val">${totalSurface.toFixed(2).replace('.', ',')} m²</div><div class="lbl">Surface totale SNA</div></div>
         <div class="eco-kpi"><div class="val">${categories.length}</div><div class="lbl">Categories</div></div>
         ${haiesBlock}${v2Block}${arbresBlock}${a1Block}${v3Block}${a4Block}${a7Block}
-        <div class="eco-kpi" style="border-left:3px solid #6a1b9a"><div class="val" style="color:#6a1b9a">${Math.round(totalIAEm2).toLocaleString('fr')} m²</div><div class="lbl">Surface IAE totale</div></div>
+        <div class="eco-kpi" style="border-left:3px solid #6a1b9a">
+            <div class="val" style="color:#6a1b9a">
+                ${Math.round(totalIAEm2).toLocaleString('fr')} m²${pctIAEBlock}
+            </div>
+            <div class="lbl">Surface IAE totale</div>
+        </div>
     `;
 }
 
