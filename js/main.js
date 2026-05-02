@@ -16,6 +16,7 @@ import { setDocN, renderComparaison, resetComparaison, setIlotsN } from './compa
 import { renderEligibilite } from './eligibilite.js';
 import { setBCAE7Data, renderBCAE7 } from './bcae7.js';
 import { setCabData, renderCab } from './cab.js';
+import { renderIAE } from './iae.js';
 
 
 // ===================================================
@@ -52,7 +53,7 @@ function renderApp(data) {
   setIlotsData(allRows);
   setIlotsN(allRows);     
   setBCAE7Data(allRows);
-  renderBCAE7();
+  renderBCAE7();   // ← transmet les rows N à comparaison.js
   setDocN(lastXmlDoc);
 
   const pacageInfo = document.getElementById('pacage-info');
@@ -84,6 +85,7 @@ function renderApp(data) {
   renderComparaison();
   renderEligibilite(lastXmlDoc);
   renderSNA();
+  renderIAE();
   initMap(ilotsGeo, parcelsGeo, maecGeo, snaList);
 }
 
@@ -240,4 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabId = btn.getAttribute('data-tab');
     if (tabId) btn.addEventListener('click', () => switchTab(tabId));
   });
-}); // <-- Cette accolade ferme le DOMContentLoaded
+
+
+});
+

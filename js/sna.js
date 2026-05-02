@@ -1,7 +1,5 @@
 // js/sna.js - Version complète avec initSNATableHeader()
 import { formatHa, escHtml } from './utils.js';
-import { getSAUadmissible, getSAUta } from './ecoregime.js';
-import { getAllRows } from './tables.js';
 
 
 let snaRows = [];
@@ -207,99 +205,15 @@ function updateSNASummary() {
 
     const totalIAEm2 = snaRows.reduce((sum, s) => sum + (calcIAE(s) || 0), 0);
 
-    // ============================================================
-    // IAE HAIES - Présentation homogène
-    // ============================================================
-    
-    const sauHa = getSAUadmissible();
-    const sauTAHa = getSAUta();
-    
-    // --- 1. IAE Haies sur SAU totale (toutes les haies) ---
-    const totalIAEHaies_m2 = totalLongueurHaies * 20; // barème V4 = 20 m²/ml
-    let sauBlock = '';
-    if (sauHa > 0 && totalIAEHaies_m2 > 0) {
-        const sauM2 = sauHa * 10000;
-        const pctIAEHaies = (totalIAEHaies_m2 / sauM2) * 100;
-        const seuilAtteint = pctIAEHaies >= 6;
-        const pctColor = seuilAtteint ? '#2e7d32' : '#b71c1c';
-        const icone = seuilAtteint ? '✅' : '⚠️';
-        
-        sauBlock = `
-            <div class="eco-kpi" style="border-left:3px solid ${seuilAtteint ? '#2e7d32' : '#b71c1c'}; min-width:260px">
-                <div class="val" style="color:${pctColor}; font-size:1rem">
-                    🌿 IAE haies sur SAU
-                </div>
-                <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:6px;">
-                    <span style="font-size:0.85rem">📏 ${Math.round(totalLongueurHaies).toLocaleString('fr')} ml</span>
-                    <span style="font-size:0.85rem">📐 ${Math.round(totalIAEHaies_m2).toLocaleString('fr')} m² IAE</span>
-                    <span style="font-size:0.85rem; font-weight:700; color:${pctColor}">${pctIAEHaies.toFixed(2).replace('.', ',')} % ${icone}</span>
-                </div>
-                <div class="lbl">Seuil bonus haie : 6% de la SAU</div>
-            </div>`;
-    }
-    
-    // --- 2. IAE Haies sur Terres Arables uniquement ---
-    const parcellesRows = getAllRows();
-    const parcellesCatIndex = new Map(
-        parcellesRows.map(r => [`${r.ilot_num}|${r.num_parcelle}`, r.surface_cat || ''])
-    );
-    let iaeHaiesTA_m2 = 0;
-    let mlHaiesTA = 0;
-    snaRows.filter(s => s.typeSna === 'V4').forEach(sna => {
-        (sna.intersectionsSnaParcelles || []).forEach(p => {
-            if ((parcellesCatIndex.get(`${p.numeroIlot}|${p.numeroParcelle}`) || '') === 'TA') {
-                const lon = p.longueurIae || 0;
-                mlHaiesTA += lon;
-                iaeHaiesTA_m2 += lon * 20;
-            }
-        });
-    });
-    
-    let taBlock = '';
-    if (sauTAHa > 0 && iaeHaiesTA_m2 > 0) {
-        const sauTAM2 = sauTAHa * 10000;
-        const pctHaiesTA = (iaeHaiesTA_m2 / sauTAM2) * 100;
-        const seuilAtteintTA = pctHaiesTA >= 6;
-        const pctColorTA = seuilAtteintTA ? '#2e7d32' : '#b71c1c';
-        const iconeTA = seuilAtteintTA ? '✅' : '⚠️';
-        
-        taBlock = `
-            <div class="eco-kpi" style="border-left:3px solid ${seuilAtteintTA ? '#2e7d32' : '#b71c1c'}; min-width:260px">
-                <div class="val" style="color:${pctColorTA}; font-size:1rem">
-                    🌾 IAE haies sur TA
-                </div>
-                <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:6px;">
-                    <span style="font-size:0.85rem">📏 ${Math.round(mlHaiesTA).toLocaleString('fr')} ml</span>
-                    <span style="font-size:0.85rem">📐 ${Math.round(iaeHaiesTA_m2).toLocaleString('fr')} m² IAE</span>
-                    <span style="font-size:0.85rem; font-weight:700; color:${pctColorTA}">${pctHaiesTA.toFixed(2).replace('.', ',')} % ${iconeTA}</span>
-                </div>
-                <div class="lbl">Seuil bonus haie : 6% de la SAU TA</div>
-            </div>`;
-    }
-
-    // --- % IAE total / SAU admissible ---
-    let pctIAEBlock = '';
-    if (sauHa > 0) {
-        const sauM2 = sauHa * 10000;
-        const pctIAE = (totalIAEm2 / sauM2) * 100;
-        const pctColor = pctIAE >= 4 ? '#2e7d32' : '#b71c1c';
-        pctIAEBlock = `<span style="margin-left:8px; font-size:0.85rem; color:${pctColor}; font-weight:700">(${pctIAE.toFixed(2).replace('.', ',')} % SAU)</span>`;
-    }
-
+    // Le détail bonus haie et les % SAU sont désormais dans l'onglet IAE dédié.
     summaryDiv.innerHTML = `
         <div class="eco-kpi"><div class="val">${snaRows.length}</div><div class="lbl">SNA totales</div></div>
         <div class="eco-kpi"><div class="val">${totalSurface.toFixed(2).replace('.', ',')} m²</div><div class="lbl">Surface totale SNA</div></div>
-        <div class="eco-kpi"><div class="val">${categories.length}</div><div class="lbl">Categories</div></div>
+        <div class="eco-kpi"><div class="val">${categories.length}</div><div class="lbl">Catégories SNA</div></div>
         ${haiesBlock}${v2Block}${arbresBlock}${a1Block}${v3Block}${a4Block}${a7Block}
-        <div style="display:flex; flex-wrap:wrap; gap:16px; margin:8px 0; width:100%">
-            ${sauBlock}
-            ${taBlock}
-        </div>
         <div class="eco-kpi" style="border-left:3px solid #6a1b9a">
-            <div class="val" style="color:#6a1b9a">
-                ${Math.round(totalIAEm2).toLocaleString('fr')} m²${pctIAEBlock}
-            </div>
-            <div class="lbl">Surface IAE totale</div>
+            <div class="val" style="color:#6a1b9a">${Math.round(totalIAEm2).toLocaleString('fr')} m²</div>
+            <div class="lbl">Surface IAE totale → voir onglet IAE</div>
         </div>
     `;
 }
