@@ -175,22 +175,20 @@ export function extractAidesFromDoc(doc) {
   }
   
   const effectifsDeclares = {};
-const eff = doc.getElementsByTagNameNS(NS2, "effectifs-animaux")[0];
-if (eff) {
-  for (let ef of eff.getElementsByTagNameNS(NS2, "effectif-animal")) {
-    // Récupère TOUTES les balises "effectif-present-ou-transhumant" et "effectif-present"
-    const presents = [
-      ...ef.getElementsByTagNameNS(NS2, "effectif-present-ou-transhumant"),
-      ...ef.getElementsByTagNameNS(NS2, "effectif-present")
-    ];
-    for (let pres of presents) {
-      const type = getText(pres, "type-animal-1") || getText(pres, "type-animal-2");
-      const nb   = getText(pres, "nb-animaux-1")  || getText(pres, "nb-animaux-2");
-      if (type && nb !== "") effectifsDeclares[type] = parseInt(nb, 10);
+  const eff = doc.getElementsByTagNameNS(NS2, "effectifs-animaux")[0];
+  if (eff) {
+    for (let ef of eff.getElementsByTagNameNS(NS2, "effectif-animal")) {
+      const presents = [
+        ...ef.getElementsByTagNameNS(NS2, "effectif-present-ou-transhumant"),
+        ...ef.getElementsByTagNameNS(NS2, "effectif-present")
+      ];
+      for (let pres of presents) {
+        const type = getText(pres, "type-animal-1") || getText(pres, "type-animal-2");
+        const nb   = getText(pres, "nb-animaux-1")  || getText(pres, "nb-animaux-2");
+        if (type && nb !== "") effectifsDeclares[type] = parseInt(nb, 10);
+      }
     }
   }
-}
-result.effectifsDeclares = effectifsDeclares;
   result.effectifsDeclares = effectifsDeclares;
   
   return result;
@@ -236,14 +234,30 @@ export function renderAides(xmlDoc) {
   // Pilier 1 découplées
   let s1 = "";
   if (data["aides-decouplees"] !== undefined) s1 += card("Aides découplées", data["aides-decouplees"]);
+  
   if (data["eco-regime"] !== undefined) {
+    // Traitement spécial pour le bonus haie (affichage en carte séparée avec couleur)
+    let bonusHtml = "";
+    if (data["eco-regime"] === "true" && data["bonus-haie"] !== undefined) {
+      const bonus = aidesFormatBoolean(data["bonus-haie"]);
+      bonusHtml = `
+        <div class="aides-card" style="margin-top:10px;border-left:3px solid ${bonus.text === "Oui" ? '#15803d' : '#b91c1c'}">
+          <div class="aides-card-header">
+            <span class="aides-card-name">🌿 Bonus Haie</span>
+            <span class="aides-status ${bonus.cls}">${bonus.text}</span>
+          </div>
+        </div>
+      `;
+    }
+    
     let det = data["eco-regime"] === "true" ? `
       <div>Voie : ${escHtml(formatVoieEcoregime(data["voie-ecoregime"]))}</div>
       <div>Certification : ${escHtml(data["certification"] || "-")}</div>
-      <div>Bonus Haie : ${aidesFormatBoolean(data["bonus-haie"]).text}</div>
+      ${bonusHtml}
     ` : "";
     s1 += card("Éco-régime", data["eco-regime"], det);
   }
+  
   if (data["aide-jeunes-agriculteurs"] !== undefined) s1 += card("👨‍🌾 Jeunes Agriculteurs (JA)", data["aide-jeunes-agriculteurs"]);
   if (s1) html += `<div class="aides-section"><h2>🟢 PILIER 1 – Aides découplées, éco-régime et aide JA</h2>${s1}</div>`;
   
