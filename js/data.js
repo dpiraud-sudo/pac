@@ -41,6 +41,7 @@ addC("Moha", "MOH", [{ code: "001", label: "Récolte en grains" }, { code: "002"
 addC("Maïs grain et ensilage", "MIS", [{ code: "001", label: "Grain" }, { code: "002", label: "Ensilage" }, { code: "003", label: "Vert" }], "TA", "Céréales de printemps", "1.1");
 addC("Maïs doux","MID", [], "TA", "Céréales de printemps", "1.1");
 addC("Riz", "RIZ", [{ code: "001", label: "Riz grain" }, { code: "002", label: "Riz semences" }], "TA", "Autres cultures", "1.1");
+addC("Mélange de céréales et pseudo-céréales d'hiver entre elles", "MCR", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
 addC("Autres céréales ou mélange de céréales", "ANR", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
 addC("Sarrasin (blé noir)", "SAB", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
 addC("Quinoa", "QUI", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
