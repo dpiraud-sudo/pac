@@ -1,6 +1,7 @@
 // js/iae.js — Onglet IAE (Infrastructures Agro-Écologiques)
 // Contient : bonus haie (V4 sur SAU et sur TA) + total IAE toutes SNA
-// Version complète avec bordures, jachères, bandes tampons, inter-rangs
+// Version complète avec bordures, jachères, bandes tampons
+// Seuils éco-régime IAE : niveau 1 (7-10%), niveau 2 (>10%)
 import { escHtml } from './utils.js';
 import { getSAUadmissible, getSAUta } from './ecoregime.js';
 import { getAllRows } from './tables.js';
@@ -21,7 +22,6 @@ const IAE_BAREME = {
   BORDURE: 10,     // BOR, BTA, BFS → 10 m²/ml
   JACHERE_MIELLIFERE: 1.5,  // JAC 002 (mellifère) → 1,5 m²/m²
   JACHERE_STANDARD: 1,      // JAC 001, 003, 004, 005 → 1 m²/m²
-  INTER_RANGS: 0,  // Les inter-rangs (CID, CIT) sont déjà comptabilisés via leurs cultures
 };
 
 // Codes de jachères avec leur barème spécifique
@@ -32,12 +32,6 @@ const JACHERE_BAREME = {
   "004": 1,   // Jachère faunistique
   "005": 1,   // Repousses de cultures couvrantes
 };
-
-// Codes IAE sur parcelles culturales (nécessitent declare-iae = true)
-const IAE_CULTURAL_CODES = new Set(['BOR', 'BTA', 'BFS', 'JAC']);
-
-// Codes inter-rangs
-const INTER_RANG_CODES = new Set(['CID', 'CIT']);
 
 const normKey = (a, b) => `${parseInt(a, 10) || a}|${parseInt(b, 10) || b}`;
 
@@ -53,8 +47,6 @@ const TYPE_LABELS = {
   BTA: 'Bande tampon',
   BFS: 'Bordure le long forêts',
   JAC: 'Jachère',
-  CID: 'Inter-rangs (2 cultures)',
-  CIT: 'Inter-rangs (3 cultures)',
 };
 
 function calcIAE(sna) {
@@ -131,7 +123,7 @@ export function renderIAE() {
   
   // ── 2. Calculs IAE sur parcelles culturales (BOR, BTA, BFS, JAC) ───────────────
   let totalCulturalIAEm2 = 0;
-  let culturalIAEByType = new Map(); // type -> { ml, m2, count }
+  let culturalIAEByType = new Map();
   
   // Initialiser les compteurs
   const culturalTypes = ['BOR', 'BTA', 'BFS', 'JAC'];
@@ -208,7 +200,7 @@ export function renderIAE() {
     if (code === 'JAC') {
       const surfaceAdm = parcelle.surface_admissible_ha || 0;
       const precision = parcelle.precision || '001';
-      const surfaceM2 = surfaceAdm * 10000; // convert ha → m²
+      const surfaceM2 = surfaceAdm * 10000;
       
       if (surfaceM2 > 0) {
         const coeff = JACHERE_BAREME[precision] || JACHERE_BAREME['001'];
@@ -229,11 +221,36 @@ export function renderIAE() {
     }
   }
   
-  // ── 3. Total IAE global ──────────────────────────────────────────────────────
+  // ── 3. Total IAE global et seuils éco-régime ─────────────────────────────────
   const totalIAEm2 = totalSnaIAEm2 + totalCulturalIAEm2;
   const pctIAE     = sauHa > 0 ? (totalIAEm2 / (sauHa * 10000)) * 100 : null;
-  const pctIAEOk   = pctIAE !== null && pctIAE >= 4;
-  const pctIAEColor = pctIAEOk ? '#2e7d32' : '#b71c1c';
+  
+  // Seuils éco-régime IAE :
+  // - Niveau 1 : 7% à 10% (inclus)
+  // - Niveau 2 : > 10%
+  let niveauIAE = null;
+  let niveauColor = '#b71c1c';
+  let niveauMessage = '⚠️ Seuil non atteint';
+  let niveauIcon = '❌';
+  
+  if (pctIAE !== null) {
+    if (pctIAE > 10) {
+      niveauIAE = 2;
+      niveauColor = '#1a5e1a';
+      niveauMessage = '✅ Niveau 2 atteint (>10%)';
+      niveauIcon = '🏆';
+    } else if (pctIAE >= 7) {
+      niveauIAE = 1;
+      niveauColor = '#e6a017';
+      niveauMessage = '⚠️ Niveau 1 atteint (7-10%) → visez >10% pour le niveau 2';
+      niveauIcon = '📈';
+    } else {
+      niveauIAE = 0;
+      niveauColor = '#b71c1c';
+      niveauMessage = `❌ Seuil non atteint (${pctIAE.toFixed(2)}% < 7%)`;
+      niveauIcon = '⚠️';
+    }
+  }
   
   // ── 4. Barre KPI globale ──────────────────────────────────────────────────
   const summaryDiv = document.getElementById('iae-summary');
@@ -244,15 +261,15 @@ export function renderIAE() {
     
     summaryDiv.innerHTML = `
       <div class="eco-kpi">
-        <div class="val" style="color:${pctIAEColor}">
+        <div class="val" style="color:${niveauColor}">
           ${Math.round(totalIAEm2).toLocaleString('fr')} m²
         </div>
         <div class="lbl">Surface IAE totale</div>
       </div>
       ${pctIAE !== null ? `
-      <div class="eco-kpi" style="border-left:3px solid ${pctIAEColor}">
-        <div class="val" style="color:${pctIAEColor}">${pctIAE.toFixed(2).replace('.', ',')} % ${pctIAEOk ? '✅' : '⚠️'}</div>
-        <div class="lbl">% de la SAU admissible (seuil : 4 %)</div>
+      <div class="eco-kpi" style="border-left:3px solid ${niveauColor}">
+        <div class="val" style="color:${niveauColor}">${pctIAE.toFixed(2).replace('.', ',')} %</div>
+        <div class="lbl">${niveauIcon} ${niveauMessage}</div>
       </div>` : ''}
       <div class="eco-kpi"><div class="val">${Math.round(totalSnaIAEm2).toLocaleString('fr')} m²</div><div class="lbl">IAE SNA</div></div>
       ${culturalBlock}
@@ -322,7 +339,6 @@ export function renderIAE() {
   if (culturalEntries.length > 0) {
     const totalCulturalM2 = culturalEntries.reduce((s, e) => s + e.m2, 0);
     const culturalRowsHtml = culturalEntries.map(entry => {
-      const pctTotal = totalCulturalM2 > 0 ? (entry.m2 / totalCulturalM2 * 100) : 0;
       const mesureDisplay = entry.ml > 0 ? `${Math.round(entry.ml).toLocaleString('fr')} m` : `${Math.round(entry.m2).toLocaleString('fr')} m²`;
       
       return `
@@ -351,7 +367,7 @@ export function renderIAE() {
                   <tr>
                     <td style="text-align:center;font-weight:700">${escHtml(d.ilot)}</td>
                     <td style="text-align:center">${escHtml(d.parcelle)}</td>
-                    <td>${d.mesure || (d.surfaceHa + ' ha × ' + d.coeff)}</td>
+                    <td>${d.mesure || (d.surfaceHa.toFixed(2).replace('.', ',') + ' ha × ' + d.coeff)}</td>
                     <td style="text-align:right;font-weight:700;color:#5a1ea0">${Math.round(d.iaeM2).toLocaleString('fr')} m²</td>
                   </tr>
                 `).join('')}
