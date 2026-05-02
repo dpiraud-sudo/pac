@@ -16,6 +16,8 @@ const IAE_BAREME = {
   A7: 1,    // mur traditionnel → 1 m²/ml
 };
 
+const normKey = (a, b) => `${parseInt(a, 10) || a}|${parseInt(b, 10) || b}`;
+
 const TYPE_LABELS = {
   V1: 'Arbre isolé',
   V2: 'Arbres alignés',
@@ -56,12 +58,12 @@ export function renderIAE() {
 
   // Haies (V4) sur TA uniquement
   const parcellesRows = getAllRows();
-  const parcCatIndex  = new Map(parcellesRows.map(r => [`${r.ilot_num}|${r.num_parcelle}`, r.surface_cat || '']));
+  const parcCatIndex  = new Map(parcellesRows.map(r => [normKey(r.ilot_num, r.num_parcelle), r.surface_cat || '']));
   let mlHaiesTA = 0;
   let iaeHaiesTA_m2 = 0;
   snaRows.filter(s => s.typeSna === 'V4').forEach(sna => {
     (sna.intersectionsSnaParcelles || []).forEach(p => {
-      if ((parcCatIndex.get(`${p.numeroIlot}|${p.numeroParcelle}`) || '') === 'TA') {
+      if ((parcCatIndex.get(normKey(p.numeroIlot, p.numeroParcelle)) || '') === 'TA') {
         mlHaiesTA     += p.longueurIae || 0;
         iaeHaiesTA_m2 += (p.longueurIae || 0) * 20;
       }
@@ -283,7 +285,7 @@ function _haiesDetailTable(snaRows, parcCatIndex) {
     const ilotsStr  = sna.ilots ? sna.ilots.join(', ') : '—';
 
     const detailSpans = parcelles.map(p => {
-      const cat = parcCatIndex.get(`${p.numeroIlot}|${p.numeroParcelle}`) || '?';
+      const cat = parcCatIndex.get(normKey(p.numeroIlot, p.numeroParcelle)) || '?';
       const bgCat = cat === 'TA' ? '#d0eaff' : cat === 'PP' ? '#d4f0d4' : '#f0e8ff';
       const txCat = cat === 'TA' ? '#1a5080' : cat === 'PP' ? '#2a6b2f' : '#5a2d8a';
       return `<span style="display:inline-block;margin:1px 3px 1px 0;background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:1px 7px;font-size:0.7rem">
