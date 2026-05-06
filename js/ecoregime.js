@@ -11,6 +11,232 @@ export function setEcoData(rows) {
   allRows = rows;
 }
 
+// ===================================================
+// CALCUL SCORE ÉCORÉGIME VOIE DES PRATIQUES
+// ===================================================
+function calcScoreEcoregime(allRows, surfTA, surfPP, sauTotale) {
+  const details = [];
+  let scoreTotal = 0;
+
+  // Surfaces par catégorie eco (sur TA uniquement sauf PP)
+  const surfByEco = {};
+  for (const r of allRows) {
+    const sa = r.surface_admissible_ha || 0;
+    if (!sa) continue;
+    const eco = r.eco || '';
+    const cat = r.surface_cat || '';
+    // On exclut les CP pures (sauf CP-en-TA) du calcul TA
+    if (cat === 'PP') continue;
+    surfByEco[eco] = (surfByEco[eco] || 0) + sa;
+  }
+
+  const pct = (surf) => surfTA > 0 ? (surf / surfTA * 100) : 0;
+  const pctSAU = (surf) => sauTotale > 0 ? (surf / sauTotale * 100) : 0;
+
+  // ── Bloc 1 : Prairie temporaire & jachères ──────────────────────────────
+  const surfPT = surfByEco["Prairies temporaires et jachères"] || 0;
+  const pctPT = pct(surfPT);
+  let ptsPT = 0;
+  if (pctPT >= 50)      ptsPT = 4;
+  else if (pctPT >= 30) ptsPT = 3;
+  else if (pctPT >= 5)  ptsPT = 2;
+  details.push({
+    label: '🌿 Prairie temporaire & jachères',
+    surf: surfPT, pct: pctPT, base: surfTA, baseLabel: '% TA',
+    seuils: [{ s: 5, p: 2 }, { s: 30, p: 3 }, { s: 50, p: 4 }],
+    pts: ptsPT, max: 4
+  });
+  scoreTotal += ptsPT;
+
+  // ── Bloc 2 : Légumineuses ────────────────────────────────────────────────
+  const surfLeg = surfByEco["Protéagineux et légumineuses fourragères"] || 0;
+  const pctLeg = pct(surfLeg);
+  let ptsLeg = 0;
+  if (pctLeg >= 10)                  ptsLeg = 3;
+  else if (pctLeg >= 5 || surfLeg > 5) ptsLeg = 2;
+  details.push({
+    label: '🫘 Légumineuses à graines & fourragères',
+    surf: surfLeg, pct: pctLeg, base: surfTA, baseLabel: '% TA',
+    seuils: [{ s: 5, p: 2, note: 'ou > 5 ha' }, { s: 10, p: 3 }],
+    pts: ptsLeg, max: 3
+  });
+  scoreTotal += ptsLeg;
+
+  // ── Bloc 3 : Céréales / Sarclées / Oléagineux (cumulable, max 4 pts) ───
+  const surfCH  = surfByEco["Céréales d'hiver"] || 0;
+  const surfCP  = surfByEco["Céréales de printemps"] || 0;
+  const surfSAR = surfByEco["Plantes sarclées"] || 0;
+  const surfOH  = surfByEco["Oléagineux d'hiver"] || 0;
+  const surfOP  = surfByEco["Oléagineux de printemps"] || 0;
+
+  const ptsCH  = pct(surfCH)  >= 10 ? 1 : 0;
+  const ptsCP  = pct(surfCP)  >= 10 ? 1 : 0;
+  const ptsSAR = pct(surfSAR) >= 10 ? 1 : 0;
+  const ptsOH  = pct(surfOH)  >= 7  ? 1 : 0;
+  const ptsOP  = pct(surfOP)  >= 5  ? 1 : 0;
+
+  const subBloc3 = [
+    { label: "Céréales d'hiver",      surf: surfCH,  pct: pct(surfCH),  seuil: 10, pts: ptsCH },
+    { label: "Céréales de printemps", surf: surfCP,  pct: pct(surfCP),  seuil: 10, pts: ptsCP },
+    { label: "Plantes sarclées",      surf: surfSAR, pct: pct(surfSAR), seuil: 10, pts: ptsSAR },
+    { label: "Oléagineux d'hiver",    surf: surfOH,  pct: pct(surfOH),  seuil: 7,  pts: ptsOH },
+    { label: "Oléagineux de printemps", surf: surfOP, pct: pct(surfOP), seuil: 5,  pts: ptsOP },
+  ];
+
+  const ptsBloc3Brut = ptsCH + ptsCP + ptsSAR + ptsOH + ptsOP;
+  const aucuneBloc3 = ptsBloc3Brut === 0;
+
+  // Fallback : si aucune condition remplie, ensemble des 5 ≥ 10 % TA
+  let ptsFallback = 0;
+  if (aucuneBloc3) {
+    const surfBloc3Total = surfCH + surfCP + surfSAR + surfOH + surfOP;
+    ptsFallback = pct(surfBloc3Total) >= 10 ? 1 : 0;
+  }
+
+  const ptsBloc3 = aucuneBloc3 ? ptsFallback : Math.min(ptsBloc3Brut, 4);
+
+  details.push({
+    label: '🌾 Céréales, sarclées & oléagineux',
+    subBloc: subBloc3,
+    aucuneBloc3, ptsFallback,
+    pts: ptsBloc3, max: 4,
+    isCumul: true
+  });
+  scoreTotal += ptsBloc3;
+
+  // ── Bloc 4 : Autres cultures ─────────────────────────────────────────────
+  const surfAut = (surfByEco["Autres cultures"] || 0) + (surfByEco["CP gérée comme une TA - Autres cultures"] || 0);
+  const pctAut = pct(surfAut);
+  let ptsAut = 0;
+  if (pctAut >= 75)      ptsAut = 5;
+  else if (pctAut >= 50) ptsAut = 4;
+  else if (pctAut >= 25) ptsAut = 3;
+  else if (pctAut >= 10) ptsAut = 2;
+  else if (pctAut >= 5)  ptsAut = 1;
+  details.push({
+    label: '🌱 Autres cultures & cultures à potentiel de diversification',
+    surf: surfAut, pct: pctAut, base: surfTA, baseLabel: '% TA',
+    seuils: [{ s: 5, p: 1 }, { s: 10, p: 2 }, { s: 25, p: 3 }, { s: 50, p: 4 }, { s: 75, p: 5 }],
+    pts: ptsAut, max: 5
+  });
+  scoreTotal += ptsAut;
+
+  // ── Bloc 5 : Prairie permanente ──────────────────────────────────────────
+  const pctPP = pctSAU(surfPP);
+  let ptsPP = 0;
+  if (pctPP >= 75)      ptsPP = 3;
+  else if (pctPP >= 40) ptsPP = 2;
+  else if (pctPP >= 10) ptsPP = 1;
+  details.push({
+    label: '🐄 Prairie permanente',
+    surf: surfPP, pct: pctPP, base: sauTotale, baseLabel: '% SAU',
+    seuils: [{ s: 10, p: 1 }, { s: 40, p: 2 }, { s: 75, p: 3 }],
+    pts: ptsPP, max: 3
+  });
+  scoreTotal += ptsPP;
+
+  // ── Bloc 6 : Surface TA < 10 ha ──────────────────────────────────────────
+  const ptsPetite = surfTA < 10 ? 2 : 0;
+  details.push({
+    label: '📐 Surface totale TA < 10 ha',
+    surf: surfTA, pct: null, base: null, baseLabel: null,
+    seuils: [{ note: '< 10 ha → 2 pts automatiques' }],
+    pts: ptsPetite, max: 2
+  });
+  scoreTotal += ptsPetite;
+
+  return { scoreTotal, details };
+}
+
+// ===================================================
+// RENDU HTML DU SCORE
+// ===================================================
+function renderScoreHtml(scoreTotal, details, surfTA) {
+  const scoreColor = scoreTotal >= 5 ? '#1a6020' : scoreTotal >= 4 ? '#7a5000' : '#8b1a1a';
+  const scoreBg    = scoreTotal >= 5 ? '#d4f0d4' : scoreTotal >= 4 ? '#fff3cd' : '#ffd0d0';
+  const scoreTxt   = scoreTotal >= 5 ? '✅ Éligible écorégime (niveau 2)' : scoreTotal >= 4 ? '🟡 Éligible écorégime (niveau 1)' : '❌ Non éligible écorégime';
+
+  const rowsHtml = details.map(d => {
+    const ptsColor = d.pts > 0 ? '#1a6020' : '#aaa';
+    const ptsBg    = d.pts > 0 ? '#d4f0d4' : '#f5f5f5';
+
+    let detailHtml = '';
+
+    if (d.isCumul) {
+      // Bloc 3 : affichage des sous-catégories
+      detailHtml = d.subBloc.map(s => {
+        const ok = s.pts > 0;
+        return `<div style="font-size:0.75rem;color:${ok ? '#1a6020' : '#999'};padding:1px 0">
+          ${ok ? '✓' : '·'} ${s.label} : ${s.pct.toFixed(1).replace('.', ',')} % TA
+          ${ok ? `<span style="color:#1a6020;font-weight:700">(+1 pt)</span>` : `<span style="color:#bbb">(seuil ${s.seuil} %)</span>`}
+        </div>`;
+      }).join('');
+      if (d.aucuneBloc3) {
+        detailHtml += `<div style="font-size:0.75rem;color:${d.ptsFallback ? '#1a6020' : '#999'};padding:1px 0;font-style:italic">
+          ${d.ptsFallback ? '✓' : '·'} Fallback ensemble des 5 ≥ 10 % TA ${d.ptsFallback ? '(+1 pt)' : '(non atteint)'}
+        </div>`;
+      }
+      if (!d.aucuneBloc3 && d.pts === 4) {
+        detailHtml += `<div style="font-size:0.72rem;color:#7a5000;font-style:italic">Plafonné à 4 pts</div>`;
+      }
+    } else if (d.pct !== null) {
+      detailHtml = `<span style="font-size:0.78rem;color:#555">${d.surf.toFixed(2).replace('.', ',')} ha — ${d.pct.toFixed(1).replace('.', ',')} ${d.baseLabel}</span>`;
+    } else {
+      // Bloc 6 petit TA
+      detailHtml = `<span style="font-size:0.78rem;color:#555">${d.surf.toFixed(2).replace('.', ',')} ha total TA</span>`;
+    }
+
+    return `
+      <tr style="border-bottom:1px solid #eee">
+        <td style="padding:9px 14px;font-weight:600;font-size:0.85rem">${d.label}</td>
+        <td style="padding:9px 14px;font-size:0.82rem">${detailHtml}</td>
+        <td style="padding:9px 14px;text-align:center">
+          <span style="background:${ptsBg};color:${ptsColor};font-weight:800;font-size:1rem;padding:4px 14px;border-radius:20px">
+            ${d.pts} / ${d.max}
+          </span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div style="background:white;border-radius:14px;border:2px solid ${scoreColor};margin-bottom:20px;overflow:hidden">
+      <div style="background:${scoreBg};padding:12px 18px;border-bottom:2px solid ${scoreColor};display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div style="font-weight:800;font-size:1rem;color:${scoreColor}">
+          🏆 Score écorégime — Voie des pratiques
+        </div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="font-size:2rem;font-weight:900;color:${scoreColor}">${scoreTotal} pts</div>
+          <div style="background:${scoreColor};color:white;border-radius:10px;padding:6px 14px;font-size:0.85rem;font-weight:700">${scoreTxt}</div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+        <thead>
+          <tr style="background:#f4faf2">
+            <th style="padding:8px 14px;text-align:left">Catégorie</th>
+            <th style="padding:8px 14px;text-align:left">Détail</th>
+            <th style="padding:8px 14px;text-align:center;min-width:90px">Points</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot>
+          <tr style="background:${scoreBg};font-weight:800">
+            <td style="padding:10px 14px;color:${scoreColor}" colspan="2">TOTAL</td>
+            <td style="padding:10px 14px;text-align:center">
+              <span style="background:${scoreColor};color:white;font-size:1.1rem;font-weight:900;padding:5px 18px;border-radius:20px">${scoreTotal} pts</span>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+      <div style="padding:10px 18px;font-size:0.75rem;color:#888;border-top:1px solid #eee">
+        Seuil d'éligibilité : 4 pts (niveau 1) · 5 pts (niveau 2) · Barème PAC 2026
+      </div>
+    </div>`;
+}
+
+// ===================================================
+// RENDU PRINCIPAL
+// ===================================================
 export function renderEcoregime() {
   const groups = new Map();
   for (const r of allRows) {
@@ -19,7 +245,7 @@ export function renderEcoregime() {
     groups.get(ecoCat).push(r);
   }
   
-  const totalHa = allRows.reduce((s, r) => s + (r.area_ha || 0), 0);
+  const totalHa    = allRows.reduce((s, r) => s + (r.area_ha || 0), 0);
   const totalAdmHa = allRows.reduce((s, r) => s + (r.surface_admissible_ha || 0), 0);
   
   const summaryDiv = document.getElementById('eco-summary');
@@ -50,10 +276,10 @@ export function renderEcoregime() {
   sauTAha = surfTypeTotals.TA;
   const surfTypeTotalTA = surfTypeTotals.TA;
 
-  // ── Calcul PP labourées ────────────────────────────────────────────────────
+  // ── PP labourées ───────────────────────────────────────────────────────────
   const ppRows = allRows.filter(r => r.surface_cat === 'PP' && (r.surface_admissible_ha || 0) > 0);
-  const ppSurfTotale = ppRows.reduce((s, r) => s + (r.surface_admissible_ha || 0), 0);
-  const ppLabourees = ppRows.filter(r => r.retournement_pp === 'true' || r.retournement_pp === true);
+  const ppSurfTotale  = ppRows.reduce((s, r) => s + (r.surface_admissible_ha || 0), 0);
+  const ppLabourees   = ppRows.filter(r => r.retournement_pp === 'true' || r.retournement_pp === true);
   const ppSurfLabouree = ppLabourees.reduce((s, r) => s + (r.surface_admissible_ha || 0), 0);
   const pctPPLabouree = ppSurfTotale > 0 ? (ppSurfLabouree / ppSurfTotale * 100) : 0;
 
@@ -68,7 +294,6 @@ export function renderEcoregime() {
       ? '🟡 Taux élevé (> 10 %) — écorégime à risque'
       : '✅ Taux conforme — écorégime accessible';
 
-  // Bloc PPH — affiché uniquement si l'exploitation a des surfaces PP
   const ppHtml = ppSurfTotale > 0 ? `
     <div style="background:white;border-radius:14px;border:1px solid ${ppBorder};margin-bottom:20px;overflow:hidden">
       <div style="background:${ppBg};padding:11px 18px;border-bottom:1px solid ${ppBorder};font-weight:700;color:${ppColor}">
@@ -87,6 +312,13 @@ export function renderEcoregime() {
       </div>
     </div>` : '';
 
+  // ── Score écorégime ────────────────────────────────────────────────────────
+  const { scoreTotal, details } = calcScoreEcoregime(
+    allRows, surfTypeTotals.TA, surfTypeTotals.PP, surfTypeTotal
+  );
+  const scoreHtml = renderScoreHtml(scoreTotal, details, surfTypeTotals.TA);
+
+  // ── Tableau répartition par type ───────────────────────────────────────────
   const surfTypeRows = [
     { lbl: '🌱 Terre arable (TA)', key: 'TA', color: '#1a5080', bg: '#d0eaff', bar: '#4a90d9' },
     { lbl: '🐄 Prairie permanente (PP)', key: 'PP', color: '#2a6b2f', bg: '#d4f0d4', bar: '#5aad5c' },
@@ -136,7 +368,8 @@ export function renderEcoregime() {
         </tfoot>
       </table>
     </div>
-    ${ppHtml}`;
+    ${ppHtml}
+    ${scoreHtml}`;
   
   const prevSurfTable = document.getElementById('eco-surf-type-table');
   if (prevSurfTable) prevSurfTable.remove();
@@ -153,9 +386,9 @@ export function renderEcoregime() {
   if (container) {
     container.innerHTML = sortedGroups.map(([cat, parcelles]) => {
       const haTotal = parcelles.reduce((s, p) => s + (p.area_ha || 0), 0);
-      const haAdm = parcelles.reduce((s, p) => s + (p.surface_admissible_ha || 0), 0);
+      const haAdm   = parcelles.reduce((s, p) => s + (p.surface_admissible_ha || 0), 0);
       const nbCodes = new Set(parcelles.map(p => p.code)).size;
-      const isPP = cat === 'PP';
+      const isPP    = cat === 'PP';
       const catDenom = isPP ? totalAdmHa : surfTypeTotalTA;
       const pct = catDenom > 0 ? (haAdm / catDenom * 100) : 0;
       
