@@ -47,9 +47,29 @@ export function renderEcoregime() {
   
   const surfTypeTotal = surfTypeTotals.TA + surfTypeTotals.PP + surfTypeTotals.CP;
   sauAdmissibleHa = surfTypeTotal;
-  sauTAha = surfTypeTotals.TA; // exposé via getSAUta()
+  sauTAha = surfTypeTotals.TA;
   const surfTypeTotalTA = surfTypeTotals.TA;
-  
+
+  // ── Calcul PP labourées ────────────────────────────────────────────────────
+  const ppRows = allRows.filter(r => r.surface_cat === 'PP' && (r.surface_admissible_ha || 0) > 0);
+  const ppSurfTotale = ppRows.reduce((s, r) => s + (r.surface_admissible_ha || 0), 0);
+  const ppLabourees = ppRows.filter(r => r.retournement_pp === 'true' || r.retournement_pp === true);
+  const ppSurfLabouree = ppLabourees.reduce((s, r) => s + (r.surface_admissible_ha || 0), 0);
+  const pctPPLabouree = ppSurfTotale > 0 ? (ppSurfLabouree / ppSurfTotale * 100) : 0;
+
+  // Couleur et message selon les deux seuils : 10 % (alerte) et 20 % (critique)
+  const ppColor     = pctPPLabouree >= 20 ? '#8b1a1a' : pctPPLabouree >= 10 ? '#7a5000' : '#1a6020';
+  const ppBg        = pctPPLabouree >= 20 ? '#fff0f0' : pctPPLabouree >= 10 ? '#fff8e1' : '#eef5ea';
+  const ppBorder    = pctPPLabouree >= 20 ? '#f5c6c6' : pctPPLabouree >= 10 ? '#ffe08a' : '#deecda';
+  const ppBarColor  = pctPPLabouree >= 20 ? '#c0392b' : pctPPLabouree >= 10 ? '#e6a017' : '#2d6a2f';
+  const ppBadgeBg   = pctPPLabouree >= 20 ? '#ffd0d0' : pctPPLabouree >= 10 ? '#fff3cd' : '#d4f0d4';
+  const ppBadgeColor= pctPPLabouree >= 20 ? '#8b1a1a' : pctPPLabouree >= 10 ? '#7a5000' : '#1a6020';
+  const ppBadgeTxt  = pctPPLabouree >= 20
+    ? '🔴 Taux critique (> 20 %) — écorégime non accessible'
+    : pctPPLabouree >= 10
+      ? '🟡 Taux élevé (> 10 %) — écorégime à risque'
+      : '✅ Taux conforme — écorégime accessible';
+
   const surfTypeRows = [
     { lbl: '🌱 Terre arable (TA)', key: 'TA', color: '#1a5080', bg: '#d0eaff', bar: '#4a90d9' },
     { lbl: '🐄 Prairie permanente (PP)', key: 'PP', color: '#2a6b2f', bg: '#d4f0d4', bar: '#5aad5c' },
@@ -98,7 +118,47 @@ export function renderEcoregime() {
           </tr>
         </tfoot>
       </table>
-    </div>`;
+    </div>
+
+    ${ppSurfTotale > 0 ? `
+    <div style="background:white;border-radius:14px;border:1px solid ${ppBorder};margin-bottom:20px;overflow:hidden">
+      <div style="background:${ppBg};padding:11px 18px;border-bottom:1px solid ${ppBorder};font-weight:700;color:${ppColor}">
+        🔄 Prairie permanente (PPH) — Retournements déclarés
+      </div>
+      <div style="padding:16px 20px;display:flex;align-items:center;gap:28px;flex-wrap:wrap">
+
+        <!-- Pourcentage principal -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:80px">
+          <div style="font-size:2rem;font-weight:800;color:${ppColor}">${pctPPLabouree.toFixed(1).replace('.', ',')} %</div>
+          <div style="font-size:0.75rem;color:#666;text-align:center">de la surface PPH<br>retournée</div>
+        </div>
+
+        <!-- Barre de progression avec repères 10% et 20% -->
+        <div style="flex:1;min-width:220px">
+          <div style="position:relative;background:#e0ecd8;border-radius:20px;height:16px;overflow:visible;margin-bottom:8px">
+            <!-- Barre de valeur -->
+            <div style="background:${ppBarColor};height:100%;border-radius:20px;width:${Math.min(pctPPLabouree, 100).toFixed(2)}%;transition:width .4s;position:relative;z-index:1"></div>
+            <!-- Repère 10% -->
+            <div style="position:absolute;top:-4px;left:10%;width:2px;height:24px;background:#e6a017;z-index:2"></div>
+            <div style="position:absolute;top:20px;left:10%;transform:translateX(-50%);font-size:0.65rem;color:#e6a017;font-weight:700">10 %</div>
+            <!-- Repère 20% -->
+            <div style="position:absolute;top:-4px;left:20%;width:2px;height:24px;background:#c0392b;z-index:2"></div>
+            <div style="position:absolute;top:20px;left:20%;transform:translateX(-50%);font-size:0.65rem;color:#c0392b;font-weight:700">20 %</div>
+          </div>
+          <div style="margin-top:14px;font-size:0.8rem;color:#555">
+            <b>${ppSurfLabouree.toFixed(2).replace('.', ',')} ha</b> retourné${ppLabourees.length > 1 ? 's' : ''}
+            sur <b>${ppSurfTotale.toFixed(2).replace('.', ',')} ha</b> de PPH totale
+            · <b>${ppLabourees.length}</b> parcelle${ppLabourees.length > 1 ? 's' : ''}
+          </div>
+        </div>
+
+        <!-- Badge statut -->
+        <div style="background:${ppBadgeBg};color:${ppBadgeColor};border-radius:10px;padding:10px 16px;font-size:0.82rem;font-weight:700;text-align:center">
+          ${ppBadgeTxt}
+        </div>
+
+      </div>
+    </div>` : ''}`;
   
   const prevSurfTable = document.getElementById('eco-surf-type-table');
   if (prevSurfTable) prevSurfTable.remove();
