@@ -19,7 +19,7 @@ const IAE_BAREME = {
   A7: 1,    // mur traditionnel → 1 m²/ml
   
   // IAE sur parcelles culturales (avec declare-iae = true)
-  BORDURE: 10,     // BOR, BTA, BFS → 10 m²/ml
+  BORDURE: 9,      // BOR, BTA, BFS → 9 m²/ml
   JACHERE_MIELLIFERE: 1.5,  // JAC 002 (mellifère) → 1,5 m²/m²
   JACHERE_STANDARD: 1,      // JAC 001, 003, 004, 005 → 1 m²/m²
 };
