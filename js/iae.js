@@ -331,7 +331,7 @@ export function renderIAE() {
         m2: data.m2,
         count: data.count,
         details: data.details,
-        bareme: type === 'JAC' ? '1 ou 1,5 m²/m² selon type' : '10 m²/ml'
+        bareme: type === 'JAC' ? '1 ou 1,5 m²/m² selon type' : `${IAE_BAREME.BORDURE} m²/ml`
       });
     }
   }
