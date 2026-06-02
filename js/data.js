@@ -33,7 +33,7 @@ addC("Orge d'hiver", "ORH", [{ code: "001", label: "Récolte en grains" }, { cod
 addC("Orge de printemps", "ORP", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Céréales de printemps", "1.1");
 addC("Seigle d'hiver", "SEH", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Céréales d'hiver", "1.1");
 addC("Seigle de printemps", "SEP", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Céréales de printemps", "1.1");
-addC("Sorgho", "SOG", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
+addC("Sorgho", "SOG", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Céréales de printemps", "1.1");
 addC("Triticale d'hiver", "TTH", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Céréales d'hiver", "1.1");
 addC("Triticale de printemps", "TTP", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Céréales de printemps", "1.1");
 addC("Millet", "MLT", [{ code: "001", label: "Récolte en grains" }, { code: "002", label: "Récolte plante entière" }], "TA", "Autres cultures", "1.1");
